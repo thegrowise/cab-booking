@@ -1,0 +1,26 @@
+{
+  "name": "ridego",
+  "private": true,
+  "type": "module",
+  "version": "1.0.0",
+  "description": "RideGo — ride-hailing demo client for the GoWise platform",
+  "scripts": {
+    "dev": "nuxt dev --port 3001",
+    "build": "nuxt build",
+    "generate": "nuxt generate",
+    "preview": "nuxt preview --port 3001",
+    "postinstall": "nuxt prepare"
+  },
+  "dependencies": {
+    "@pinia/nuxt": "^0.11.3",
+    "nuxt": "4.4.2",
+    "pinia": "^3.0.3",
+    "tailwindcss": "^4.1.0",
+    "@tailwindcss/vite": "^4.1.0",
+    "vue": "3.5.31",
+    "vue-router": "5.0.4"
+  },
+  "overrides": {
+    "vite": "7.3.1"
+  }
+}
