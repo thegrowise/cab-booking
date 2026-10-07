@@ -119,7 +119,6 @@ function onPaymentSelect(method: PaymentMethod) {
 async function confirm() {
   if (!bookingStore.current.paymentMethod) return
   confirming.value = true
-  useTracking().bookingConfirmationViewed(bookingStore.current)
 
   await new Promise(r => setTimeout(r, 800))
 

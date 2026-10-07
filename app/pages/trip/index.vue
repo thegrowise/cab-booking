@@ -249,6 +249,10 @@ onMounted(() => {
     router.replace('/ride')
     return
   }
+  useTracking().pageViewed('trip_tracking', '/trip', {
+    booking_id: bookingStore.current.bookingId,
+    stage: bookingStore.current.stage
+  })
   scheduleNextStage()
 })
 

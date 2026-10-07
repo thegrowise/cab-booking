@@ -119,7 +119,6 @@ export const useBookingStore = defineStore('booking', () => {
     }
     current.value.stage = 'RIDE_SELECTED'
     persist()
-    useTracking().rideTypeSelected(ride, current.value.fare, 0)
   }
 
   function applyCoupon(coupon: Coupon): { success: boolean; error?: string } {
