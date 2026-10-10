@@ -25,6 +25,23 @@ export const KANPUR_LOCATIONS: Place[] = [
   { id: 'loc_022', name: 'Harsh Nagar', address: 'Harsh Nagar Market', area: 'Harsh Nagar', city: 'Kanpur', state: 'UP', lat: 26.4543, lng: 80.3081 },
 ]
 
+export function findLocationById(id: string | undefined): Place | undefined {
+  return id ? KANPUR_LOCATIONS.find(l => l.id === id) : undefined
+}
+
+/** Matches a place label from ride history ("Kanpur Central", "Panki") to a known location. */
+export function findLocationByLabel(label: string): Place | undefined {
+  const q = label.trim().toLowerCase()
+  return KANPUR_LOCATIONS.find(l => l.name.toLowerCase() === q)
+    ?? KANPUR_LOCATIONS.find(l => l.area.toLowerCase() === q)
+    ?? KANPUR_LOCATIONS.find(l => l.name.toLowerCase().startsWith(q))
+}
+
+/** Matches a saved place ("Swaroop Nagar, Kanpur") to a known location. */
+export function findLocationForSavedPlace(address: string): Place | undefined {
+  return KANPUR_LOCATIONS.find(l => l.address.includes(address.split(',')[0]))
+}
+
 export function searchLocations(query: string): Place[] {
   if (!query || query.length < 2) return KANPUR_LOCATIONS.slice(0, 8)
   const q = query.toLowerCase()

@@ -68,9 +68,11 @@ function waitForScript(timeoutMs = 8000): Promise<GrowiseSDK | null> {
 
 export function useGrowise() {
   const config = useRuntimeConfig()
+  // The localStorage key override is a dev-panel tool; ignore it when the panel is off
+  const keyOverrideAllowed = useDevPanelEnabled()
 
   function resolveApiKey(): string {
-    if (import.meta.client) {
+    if (import.meta.client && keyOverrideAllowed) {
       const stored = localStorage.getItem(API_KEY_STORAGE)
       if (stored) return stored
     }
@@ -171,7 +173,7 @@ export function useGrowise() {
   }
 
   async function setApiKey(key: string) {
-    if (!import.meta.client) return
+    if (!import.meta.client || !keyOverrideAllowed) return
     localStorage.setItem(API_KEY_STORAGE, key.trim())
     await init(true)
   }

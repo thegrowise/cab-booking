@@ -1,91 +1,94 @@
 <template>
-  <div class="max-w-2xl mx-auto px-4 py-6">
+  <div class="rg-page">
     <div class="mb-6">
-      <h1 class="text-2xl font-extrabold text-gray-900">Payment</h1>
-      <p class="text-gray-500 text-sm mt-1">Complete your ride payment</p>
+      <h1 class="rg-page-title">Payment</h1>
+      <p class="rg-page-subtitle">Pay for your trip. Payments in this demo are simulated.</p>
     </div>
 
-    <!-- Success State -->
-    <div v-if="stage === 'success'" class="text-center py-12">
-      <div class="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center text-4xl mx-auto mb-4">✅</div>
-      <h2 class="text-2xl font-bold text-gray-900 mb-2">Payment Successful!</h2>
-      <p class="text-gray-500 mb-2">₹{{ bookingStore.finalFare }} paid via {{ bookingStore.current.paymentMethod?.label }}</p>
-      <p class="text-sm text-gray-400 mb-8">Booking ID: {{ bookingStore.current.bookingId }}</p>
-      <button
-        class="w-full bg-primary text-white rounded-2xl py-4 font-bold text-lg hover:bg-primary-600 transition-colors"
-        @click="goToRating"
-      >
-        Rate Your Ride →
-      </button>
-    </div>
-
-    <!-- Failed State -->
-    <div v-else-if="stage === 'failed'" class="text-center py-8">
-      <div class="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center text-4xl mx-auto mb-4">❌</div>
-      <h2 class="text-2xl font-bold text-gray-900 mb-2">Payment Failed</h2>
-      <p class="text-gray-500 mb-8">{{ failureReason }}</p>
-      <button
-        class="w-full bg-primary text-white rounded-2xl py-4 font-bold text-lg hover:bg-primary-600 transition-colors mb-3"
-        @click="retry"
-      >
-        Try Again
-      </button>
-      <button class="w-full text-gray-500 py-3 font-medium" @click="$router.push('/')">Go Home</button>
-    </div>
-
-    <!-- Processing State -->
-    <div v-else-if="processing" class="text-center py-12">
-      <div class="w-20 h-20 rounded-full border-4 border-primary border-t-transparent animate-spin mx-auto mb-4" />
-      <h2 class="text-xl font-bold text-gray-900 mb-2">Processing Payment</h2>
-      <p class="text-gray-500">Please wait...</p>
-    </div>
-
-    <!-- Payment Form -->
-    <div v-else>
-      <!-- Ride summary -->
-      <div class="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm mb-4">
-        <div class="flex items-center justify-between mb-3">
-          <div class="font-semibold text-gray-900">Trip Summary</div>
-          <div class="text-xs text-gray-400">{{ bookingStore.current.bookingId }}</div>
-        </div>
-        <div class="space-y-1.5 text-sm">
-          <div class="flex justify-between text-gray-600">
-            <span>{{ bookingStore.current.pickup?.name }}</span>
-            <span class="text-gray-400">→</span>
-          </div>
-          <div class="flex justify-between text-gray-600">
-            <span>{{ bookingStore.current.destination?.name }}</span>
-          </div>
-          <div class="flex items-center gap-2 text-gray-500 text-xs mt-2">
-            <span>{{ bookingStore.current.selectedRide?.icon }} {{ bookingStore.current.selectedRide?.label }}</span>
-            <span>•</span>
-            <span>{{ bookingStore.current.distanceKm.toFixed(1) }} km</span>
-          </div>
-        </div>
-        <div class="border-t border-gray-100 mt-3 pt-3 flex justify-between font-bold">
-          <span class="text-gray-900">Total</span>
-          <span class="text-primary text-xl">₹{{ bookingStore.finalFare }}</span>
-        </div>
+    <!-- Paid: receipt -->
+    <div v-if="isPaid" class="space-y-4">
+      <div class="text-center pt-2">
+        <div class="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-3"><RgIcon name="check" :size="32" /></div>
+        <h2 class="text-2xl font-bold text-gray-900">Payment Successful!</h2>
+        <p class="text-gray-500 mt-1">{{ formatCurrency(bookingStore.finalFare) }} paid with {{ bookingStore.current.paymentMethod?.label }}</p>
       </div>
+      <RgReceipt v-if="receipt" :ride="receipt" />
+      <div class="grid sm:grid-cols-2 gap-2">
+        <button class="rg-btn-primary rg-btn-lg" @click="goToRating">Rate Your Ride <RgIcon name="arrow-right" :size="18" /></button>
+        <NuxtLink v-if="receipt" :to="`/activity/${receipt.id}`" class="rg-btn-secondary rg-btn-lg">View in My Rides</NuxtLink>
+      </div>
+    </div>
 
-      <!-- Payment method -->
-      <div class="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm mb-4">
-        <h3 class="font-semibold text-gray-900 mb-3">Payment Method</h3>
+    <!-- Processing -->
+    <div v-else-if="processing" class="text-center py-16" aria-live="polite">
+      <div class="w-16 h-16 rounded-full border-4 border-primary border-t-transparent animate-spin mx-auto mb-4" />
+      <h2 class="text-xl font-bold text-gray-900 mb-1">Processing Payment</h2>
+      <p class="text-gray-500">Confirming {{ formatCurrency(bookingStore.finalFare) }} with {{ bookingStore.current.paymentMethod?.label }}…</p>
+    </div>
+
+    <!-- Not payable (ride still running, or cancelled) -->
+    <div v-else-if="!bookingStore.canPay" class="text-center py-12">
+      <div class="w-16 h-16 bg-gray-100 text-gray-500 rounded-full flex items-center justify-center mx-auto mb-4"><RgIcon name="clock" :size="30" /></div>
+      <h2 class="text-xl font-bold text-gray-900 mb-2">Payment not available</h2>
+      <p class="text-gray-500 mb-8">{{ notPayableMessage }}</p>
+      <button v-if="bookingStore.hasActiveBooking" class="rg-btn-primary rg-btn-lg w-full" @click="router.push('/trip')">Back to your trip</button>
+      <button v-else class="rg-btn-secondary w-full" @click="router.push('/')">Go Home</button>
+    </div>
+
+    <!-- Failed -->
+    <div v-else-if="failed" class="text-center py-8" aria-live="assertive">
+      <div class="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4"><RgIcon name="x" :size="30" /></div>
+      <h2 class="text-2xl font-bold text-gray-900 mb-2">Payment Failed</h2>
+      <p class="text-gray-600 mb-1">{{ failureReason }}</p>
+      <p class="text-sm text-gray-400 mb-8">You haven’t been charged. Your trip details are saved.</p>
+      <div class="space-y-2">
+        <button class="rg-btn-primary rg-btn-lg w-full" @click="retry">Try Again</button>
+        <NuxtLink v-if="bookingStore.current.paymentFailureReason === 'insufficient_wallet'" to="/wallet" class="rg-btn-secondary w-full">Add money to wallet</NuxtLink>
+      </div>
+    </div>
+
+    <!-- Payment form -->
+    <div v-else class="space-y-4">
+      <section class="rg-card p-4" aria-labelledby="summary-heading">
+        <div class="flex items-center justify-between mb-3">
+          <h2 id="summary-heading" class="font-semibold text-gray-900">Trip summary</h2>
+          <span class="text-xs text-gray-400 font-mono">{{ bookingStore.current.bookingId }}</span>
+        </div>
+        <div class="text-sm text-gray-700 flex items-center gap-2 min-w-0">
+          <span class="truncate">{{ bookingStore.current.pickup?.name }}</span>
+          <RgIcon name="arrow-right" :size="14" class="text-gray-400" />
+          <span class="truncate">{{ bookingStore.current.destination?.name }}</span>
+        </div>
+        <div class="text-xs text-gray-500 mt-1">{{ bookingStore.current.selectedRide?.label }} · {{ bookingStore.current.distanceKm.toFixed(1) }} km · {{ bookingStore.current.driver?.name }}</div>
+        <div class="mt-4">
+          <RgFareBreakdown
+            :base-fare="bookingStore.current.selectedRide?.baseFare ?? 0"
+            :distance-fare="Math.round((bookingStore.current.selectedRide?.perKm ?? 0) * bookingStore.current.distanceKm)"
+            :distance-km="bookingStore.current.distanceKm"
+            :discount="bookingStore.discountAmount"
+            :coupon-code="bookingStore.current.coupon?.code"
+            total-label="To pay"
+          />
+        </div>
+      </section>
+
+      <section class="rg-card p-4" aria-labelledby="method-heading">
+        <h2 id="method-heading" class="font-semibold text-gray-900 mb-3">Payment method</h2>
         <RgPaymentSelector
           :selected="bookingStore.current.paymentMethod"
           :wallet-balance="walletStore.balance"
+          :amount="bookingStore.finalFare"
           @select="bookingStore.setPaymentMethod($event)"
         />
-      </div>
+      </section>
 
-      <!-- Pay button -->
-      <div class="pb-24 lg:pb-0">
+      <div class="sticky bottom-[calc(3.5rem+env(safe-area-inset-bottom,0px)+0.75rem)] lg:static z-20">
         <button
-          class="w-full bg-primary text-white rounded-2xl px-6 py-4 font-bold text-lg shadow-lg hover:bg-primary-600 transition-colors disabled:opacity-50"
-          :disabled="!bookingStore.current.paymentMethod"
+          class="rg-btn-primary rg-btn-lg w-full shadow-lg"
+          :disabled="!bookingStore.current.paymentMethod || !bookingStore.canPay"
           @click="pay"
         >
-          Pay ₹{{ bookingStore.finalFare }}
+          Pay {{ formatCurrency(bookingStore.finalFare) }}{{ bookingStore.current.paymentMethod ? ` with ${bookingStore.current.paymentMethod.label}` : '' }}
         </button>
       </div>
     </div>
@@ -93,72 +96,50 @@
 </template>
 
 <script setup lang="ts">
+import { formatCurrency } from '~/utils/format'
+
 const router = useRouter()
 const bookingStore = useBookingStore()
 const walletStore = useWalletStore()
+const history = useHistoryStore()
 
-const processing = ref(false)
-const stage = ref<'pending' | 'processing' | 'success' | 'failed'>('pending')
-const failureReason = ref('Card declined. Please try another method.')
-const attemptCount = ref(0)
+// What the page shows is derived from the booking store, so leaving and coming
+// back can't reopen the form for a ride that is already paid.
+const processing = computed(() => bookingStore.paymentInFlight)
+const isPaid = computed(() =>
+  !!bookingStore.current.paidAt ||
+  ['PAYMENT_COMPLETED', 'RATING_PENDING'].includes(bookingStore.current.stage)
+)
+const receipt = computed(() => (bookingStore.current.bookingId ? history.byId(bookingStore.current.bookingId) : undefined))
+
+// A failed attempt leaves the booking in PAYMENT_FAILED (kept across refresh);
+// "Try again" shows the form until the next attempt resolves.
+const retrying = ref(false)
+const failed = computed(() => bookingStore.current.stage === 'PAYMENT_FAILED' && !retrying.value)
+const failureReason = computed(() =>
+  bookingStore.current.paymentFailureReason === 'insufficient_wallet'
+    ? 'Insufficient wallet balance. Add money or choose another method.'
+    : 'Card declined. Please try another method.'
+)
+
+const notPayableMessage = computed(() => {
+  if (bookingStore.current.stage === 'CANCELLED') return 'This ride was cancelled, so there is nothing to pay.'
+  if (bookingStore.hasActiveBooking) return 'You can pay once your ride is complete.'
+  return 'There is no ride waiting for payment.'
+})
 
 async function pay() {
-  if (!bookingStore.current.paymentMethod) return
-  processing.value = true
-  attemptCount.value++
-
-  useTracking().paymentStarted(
-    bookingStore.current,
-    bookingStore.current.paymentMethod.id,
-    attemptCount.value,
-    bookingStore.finalFare
-  )
-
-  await new Promise(r => setTimeout(r, 2000))
-
-  // Simulate occasional failure for demo
-  const shouldFail = bookingStore.current.stage === 'PAYMENT_FAILED'
-
-  if (shouldFail) {
-    processing.value = false
-    stage.value = 'failed'
-    useTracking().paymentFailed(bookingStore.current, bookingStore.current.paymentMethod.id, 'card_declined', attemptCount.value)
-  } else {
-    // Wallet check
-    if (bookingStore.current.paymentMethod.type === 'wallet') {
-      const ok = walletStore.deduct(bookingStore.finalFare, 'Ride payment', bookingStore.current.bookingId ?? undefined)
-      if (!ok) {
-        processing.value = false
-        stage.value = 'failed'
-        failureReason.value = 'Insufficient wallet balance'
-        return
-      }
-    }
-    processing.value = false
-    stage.value = 'success'
-    bookingStore.paymentSuccess()
-  }
+  await bookingStore.pay()
+  // Success, failure and refusals are all reflected in the store state
+  retrying.value = false
 }
 
 function retry() {
-  stage.value = 'pending'
-  useTracking().paymentRetry(bookingStore.current.bookingId!, attemptCount.value)
+  retrying.value = true
+  useTracking().paymentRetry(bookingStore.current.bookingId!, bookingStore.current.paymentAttempts)
 }
 
 function goToRating() {
   router.push('/rating')
 }
-
-onMounted(() => {
-  if (!bookingStore.current.bookingId) {
-    router.replace('/')
-    return
-  }
-  useTracking().pageViewed('payment', '/payment', { is_logged_in: useUserStore().isLoggedIn })
-
-  // If payment failed was pre-set by dev panel
-  if (bookingStore.current.stage === 'PAYMENT_FAILED') {
-    stage.value = 'failed'
-  }
-})
 </script>

@@ -1,53 +1,41 @@
 <template>
-  <div class="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
+  <div class="rg-card p-4">
     <div class="flex items-center gap-3">
-      <!-- Avatar -->
-      <div class="w-12 h-12 rounded-full bg-primary flex items-center justify-center text-white font-bold text-lg flex-shrink-0">
+      <div class="w-12 h-12 rounded-full bg-primary flex items-center justify-center text-white font-bold text-lg shrink-0" aria-hidden="true">
         {{ driver.avatar }}
       </div>
-
-      <!-- Info -->
       <div class="flex-1 min-w-0">
-        <div class="font-semibold text-gray-900">{{ driver.name }}</div>
+        <div class="font-semibold text-gray-900 truncate">{{ driver.name }}</div>
         <div class="flex items-center gap-1 text-sm text-gray-500">
-          <span class="text-yellow-400">★</span>
-          <span>{{ driver.rating }}</span>
+          <RgIcon name="star" :size="14" class="text-amber-400 fill-amber-400" />
+          <span>{{ driver.rating.toFixed(1) }}</span>
           <span class="text-gray-300">•</span>
-          <span>{{ driver.totalRides.toLocaleString('en-IN') }} rides</span>
+          <span>{{ driver.totalRides.toLocaleString('en-IN') }} trips</span>
         </div>
       </div>
-
-      <!-- ETA -->
-      <div class="text-right flex-shrink-0">
+      <div v-if="showEta" class="text-right shrink-0">
         <div class="text-primary font-bold text-lg">{{ driver.eta }} min</div>
         <div class="text-xs text-gray-500">away</div>
       </div>
     </div>
 
-    <!-- Vehicle info -->
-    <div class="mt-3 flex items-center justify-between bg-gray-50 rounded-xl px-3 py-2">
-      <div>
-        <div class="text-sm font-medium text-gray-900">{{ driver.vehicle }}</div>
+    <div class="mt-3 flex items-center justify-between gap-3 bg-gray-50 rounded-xl px-3 py-2.5">
+      <div class="min-w-0">
+        <div class="text-sm font-medium text-gray-900 truncate">{{ driver.vehicle }}</div>
         <div class="text-xs text-gray-500">{{ driver.vehicleColor }}</div>
       </div>
-      <div class="text-right">
-        <div class="text-sm font-semibold text-gray-900 tracking-wide">{{ driver.vehicleNumber }}</div>
+      <!-- Number plate -->
+      <div class="shrink-0 border-2 border-gray-800 rounded-md bg-white px-2 py-0.5 font-mono text-sm font-bold text-gray-900 tracking-wider" :aria-label="`Vehicle number ${driver.vehicleNumber}`">
+        {{ driver.vehicleNumber }}
       </div>
     </div>
 
-    <!-- Call button -->
-    <div v-if="showCallButton" class="mt-3 flex gap-2">
-      <button
-        class="flex-1 flex items-center justify-center gap-2 border-2 border-primary text-primary rounded-xl px-4 py-2.5 font-semibold text-sm hover:bg-primary-50 transition-colors"
-        @click="$emit('call')"
-      >
-        📞 Call Driver
+    <div v-if="showCallButton" class="mt-3 grid grid-cols-2 gap-2">
+      <button class="rg-btn-outline py-2.5" @click="$emit('call')">
+        <RgIcon name="phone" :size="16" /> Call
       </button>
-      <button
-        class="flex-1 flex items-center justify-center gap-2 bg-primary text-white rounded-xl px-4 py-2.5 font-semibold text-sm hover:bg-primary-600 transition-colors"
-        @click="$emit('chat')"
-      >
-        💬 Message
+      <button class="rg-btn-primary py-2.5" @click="$emit('chat')">
+        <RgIcon name="message" :size="16" /> Message
       </button>
     </div>
   </div>
@@ -59,6 +47,7 @@ import type { Driver } from '~/types/driver'
 defineProps<{
   driver: Driver
   showCallButton?: boolean
+  showEta?: boolean
 }>()
 
 defineEmits<{ call: []; chat: [] }>()

@@ -1,74 +1,75 @@
 <template>
-  <div class="max-w-2xl mx-auto px-4 py-6">
-    <div class="text-center mb-8">
-      <div class="text-5xl mb-3">⭐</div>
-      <h1 class="text-2xl font-extrabold text-gray-900">Rate Your Ride</h1>
-      <p class="text-gray-500 text-sm mt-1">How was your experience?</p>
+  <div class="rg-page">
+    <div class="text-center mb-6">
+      <h1 class="rg-page-title">How was your ride?</h1>
+      <p class="rg-page-subtitle">
+        {{ bookingStore.current.pickup?.name }} → {{ bookingStore.current.destination?.name }}
+      </p>
     </div>
 
-    <!-- Driver card -->
-    <div v-if="bookingStore.current.driver" class="mb-6">
+    <div v-if="bookingStore.current.driver" class="mb-4">
       <RgDriverCard :driver="bookingStore.current.driver" />
     </div>
 
-    <!-- Star rating -->
-    <div class="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm mb-4">
-      <div class="text-center">
-        <h3 class="font-semibold text-gray-900 mb-4">Rate your driver</h3>
-        <div class="flex items-center justify-center gap-2">
-          <button
-            v-for="n in 5"
-            :key="n"
-            class="text-4xl transition-transform hover:scale-110"
-            @click="rating = n"
-            @mouseenter="hoverRating = n"
-            @mouseleave="hoverRating = 0"
-          >
-            <span :class="(hoverRating || rating) >= n ? 'text-yellow-400' : 'text-gray-200'">★</span>
-          </button>
-        </div>
-        <div class="mt-2 text-sm font-medium text-gray-600">{{ ratingLabel }}</div>
+    <!-- Stars -->
+    <section class="rg-card p-6 mb-4 text-center" aria-labelledby="stars-heading">
+      <h2 id="stars-heading" class="font-semibold text-gray-900 mb-4">Rate {{ bookingStore.current.driver?.name?.split(' ')[0] ?? 'your driver' }}</h2>
+      <div class="flex items-center justify-center gap-1 sm:gap-2" role="radiogroup" aria-label="Rating">
+        <button
+          v-for="n in 5"
+          :key="n"
+          type="button"
+          role="radio"
+          :aria-checked="rating === n"
+          :aria-label="`${n} star${n > 1 ? 's' : ''}`"
+          class="p-1 transition-transform hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 rounded-lg"
+          @click="setRating(n)"
+          @mouseenter="hoverRating = n"
+          @mouseleave="hoverRating = 0"
+        >
+          <RgIcon name="star" :size="40" :stroke-width="1.5" :class="(hoverRating || rating) >= n ? 'text-amber-400 fill-amber-400' : 'text-gray-200 fill-gray-100'" />
+        </button>
       </div>
-    </div>
+      <div class="mt-2 h-5 text-sm font-semibold text-gray-600">{{ ratingLabel }}</div>
+    </section>
 
-    <!-- Feedback tags -->
-    <div class="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm mb-4">
-      <h3 class="font-semibold text-gray-900 mb-3">What went well?</h3>
+    <!-- Tags -->
+    <section v-if="rating" class="rg-card p-4 mb-4" aria-labelledby="tags-heading">
+      <h2 id="tags-heading" class="font-semibold text-gray-900 mb-3">{{ rating >= 4 ? 'What went well?' : 'What could be better?' }}</h2>
       <div class="flex flex-wrap gap-2">
         <button
-          v-for="tag in feedbackTags"
+          v-for="tag in visibleTags"
           :key="tag"
-          class="px-3 py-1.5 rounded-full text-sm font-medium border-2 transition-all"
-          :class="selectedTags.includes(tag)
-            ? 'border-primary bg-primary-50 text-primary'
-            : 'border-gray-100 bg-white text-gray-700 hover:border-gray-200'"
+          type="button"
+          class="px-3 py-1.5 rounded-full text-sm font-medium border-2 transition-colors"
+          :class="selectedTags.includes(tag) ? 'border-primary bg-primary-50 text-primary' : 'border-gray-100 bg-white text-gray-700 hover:border-gray-200'"
+          :aria-pressed="selectedTags.includes(tag)"
           @click="toggleTag(tag)"
         >
           {{ tag }}
         </button>
       </div>
-    </div>
+    </section>
 
     <!-- Comment -->
-    <div class="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm mb-6">
-      <h3 class="font-semibold text-gray-900 mb-2">Additional comments</h3>
+    <section class="rg-card p-4 mb-6">
+      <label for="rating-comment" class="font-semibold text-gray-900 block mb-2">Anything else? <span class="font-normal text-gray-400">(optional)</span></label>
       <textarea
+        id="rating-comment"
         v-model="comment"
-        placeholder="Optional — tell us about your experience..."
+        placeholder="Tell us about your trip…"
         rows="3"
-        class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary resize-none"
+        maxlength="500"
+        class="rg-input resize-none"
       />
-    </div>
+      <p class="text-xs text-gray-400 mt-1">In this demo your comment isn’t sent or stored. Only whether you wrote one is recorded.</p>
+    </section>
 
-    <div class="pb-24 lg:pb-0 space-y-2">
-      <button
-        class="w-full bg-primary text-white rounded-2xl py-4 font-bold text-lg hover:bg-primary-600 transition-colors disabled:opacity-50"
-        :disabled="rating === 0 || submitting"
-        @click="submit"
-      >
-        {{ submitting ? 'Submitting...' : 'Submit Rating' }}
+    <div class="space-y-2">
+      <button class="rg-btn-primary rg-btn-lg w-full" :disabled="rating === 0 || submitting" @click="submit">
+        {{ submitting ? 'Submitting…' : 'Submit Rating' }}
       </button>
-      <button class="w-full text-gray-400 text-sm py-2 font-medium" @click="skip">Skip for now</button>
+      <button class="rg-btn-ghost w-full" :disabled="submitting" @click="skip">Skip for now</button>
     </div>
   </div>
 </template>
@@ -76,6 +77,8 @@
 <script setup lang="ts">
 const router = useRouter()
 const bookingStore = useBookingStore()
+const history = useHistoryStore()
+const toast = useToast()
 
 const rating = ref(0)
 const hoverRating = ref(0)
@@ -83,17 +86,20 @@ const selectedTags = ref<string[]>([])
 const comment = ref('')
 const submitting = ref(false)
 
-const feedbackTags = [
-  'Clean car', 'Good driving', 'Friendly driver', 'On time',
-  'Smooth ride', 'Late', 'Poor driving', 'Vehicle issue',
-  'Wrong route', 'Safe driving'
-]
+const POSITIVE_TAGS = ['Clean car', 'Good driving', 'Friendly driver', 'On time', 'Smooth ride', 'Safe driving', 'Knew the route']
+const ISSUE_TAGS = ['Late pickup', 'Poor driving', 'Vehicle issue', 'Wrong route', 'Unclean car', 'Rude behaviour', 'Felt unsafe']
+const visibleTags = computed(() => (rating.value >= 4 ? POSITIVE_TAGS : ISSUE_TAGS))
 
 const ratingLabel = computed(() => {
   const r = hoverRating.value || rating.value
-  const labels = ['', 'Poor', 'Fair', 'Good', 'Very Good', 'Excellent!']
-  return labels[r] ?? ''
+  return ['', 'Poor', 'Fair', 'Good', 'Very good', 'Excellent!'][r] ?? ''
 })
+
+function setRating(n: number) {
+  // Switching between a good and a bad score clears tags from the other list
+  if ((rating.value >= 4) !== (n >= 4)) selectedTags.value = []
+  rating.value = n
+}
 
 function toggleTag(tag: string) {
   const idx = selectedTags.value.indexOf(tag)
@@ -102,43 +108,42 @@ function toggleTag(tag: string) {
 }
 
 async function submit() {
-  if (rating.value === 0) return
+  if (rating.value === 0 || submitting.value) return
   submitting.value = true
+  const bookingId = bookingStore.current.bookingId!
+  const driverName = bookingStore.current.driver?.name?.split(' ')[0]
 
   useTracking().driverRated(
-    bookingStore.current.bookingId!,
+    bookingId,
     bookingStore.current.driver?.id ?? '',
     rating.value,
     selectedTags.value
   )
   useTracking().rideFeedbackSubmitted(
-    bookingStore.current.bookingId!,
+    bookingId,
     rating.value,
     !!comment.value.trim()
   )
 
-  useGrowise().profilePush({
-    last_rating_given: rating.value,
-    total_rides: useUserStore().currentUser?.totalRides ?? 0,
-    completed_rides: useUserStore().currentUser?.completedRides ?? 0,
-  })
+  // Ride totals were already pushed when the ride completed
+  useGrowise().profilePush({ last_rating_given: rating.value })
+  history.setRating(bookingId, rating.value, [...selectedTags.value])
 
-  await new Promise(r => setTimeout(r, 1000))
+  await new Promise(r => setTimeout(r, 600))
   bookingStore.reset()
   submitting.value = false
+  toast.success(`Thanks! Your rating${driverName ? ` for ${driverName}` : ''} is saved to My Rides.`)
   router.push('/')
 }
 
 function skip() {
+  if (submitting.value) return
   bookingStore.reset()
   router.push('/')
 }
 
+// The booking-flow middleware only allows this page for a paid ride
 onMounted(() => {
-  if (!bookingStore.current.driver) {
-    router.replace('/')
-    return
-  }
   useTracking().rideRatingStarted(
     bookingStore.current.bookingId!,
     bookingStore.current.driver?.id ?? ''

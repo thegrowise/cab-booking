@@ -36,7 +36,11 @@ export default defineNuxtConfig({
       growiseEndpoint: process.env.NUXT_PUBLIC_GROWISE_ENDPOINT || '',
       growiseGateway: process.env.NUXT_PUBLIC_GROWISE_GATEWAY || 'http://localhost:8082',
       appVersion: '1.0.0-ridego',
-      devPanel: process.env.NUXT_PUBLIC_DEV_PANEL !== 'false'
+      // The dev panel can override the API key and wipe identities. `nuxt dev` shows it
+      // unless NUXT_PUBLIC_DEV_PANEL=false; production builds ignore that flag and need
+      // NUXT_PUBLIC_DEV_PANEL_IN_PRODUCTION=true (see useDevPanelEnabled).
+      devPanel: process.env.NUXT_PUBLIC_DEV_PANEL !== 'false',
+      devPanelInProduction: process.env.NUXT_PUBLIC_DEV_PANEL_IN_PRODUCTION === 'true'
     }
   }
 })

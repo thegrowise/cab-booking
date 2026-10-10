@@ -194,7 +194,8 @@ const scenarios = [
     label: '❌ Cancel Active Ride',
     color: 'bg-red-900 hover:bg-red-800 text-red-100',
     action: () => {
-      bookingStore.cancelRide('changed_my_mind')
+      // Same reason value the trip page's cancel sheet sends
+      bookingStore.cancelRide('Changed my mind')
       router.push('/')
     }
   },
@@ -227,10 +228,11 @@ const scenarios = [
     }
   },
   {
-    label: '💳 Force Payment Failure',
+    label: '💳 Decline Next Payment',
     color: 'bg-orange-900 hover:bg-orange-800 text-orange-100',
     action: () => {
-      bookingStore.paymentFailed('card_declined')
+      // Only applies to a finished, unpaid ride; a retry after it can succeed
+      bookingStore.simulateNextPaymentFailure()
       router.push('/payment')
     }
   },

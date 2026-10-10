@@ -56,6 +56,14 @@ export function useTracking() {
       })
     },
 
+    pickupSearchStarted(query: string) {
+      gw.track('pickup_search_started', { query_length: query.length })
+    },
+
+    pickupSearchCompleted(query: string, resultsCount: number) {
+      gw.track('pickup_search_completed', { query_length: query.length, results_count: resultsCount })
+    },
+
     destinationSearchStarted(query: string) {
       gw.track('destination_search_started', { query_length: query.length })
     },
@@ -78,7 +86,7 @@ export function useTracking() {
     },
 
     // ── RIDE DISCOVERY ────────────────────────────────────────────────────────
-    rideSearchStarted(pickupCity: string, destCity: string) {
+    rideSearchStarted(pickupCity: string | null, destCity: string | null) {
       gw.track('ride_search_started', { pickup_city: pickupCity, destination_city: destCity })
     },
 
@@ -201,6 +209,16 @@ export function useTracking() {
 
     rideReceiptViewed(bookingId: string, fare: number) {
       gw.track('ride_receipt_viewed', { booking_id: bookingId, fare, currency: 'INR' })
+    },
+
+    rideBookedAgain(fromBookingId: string, pickup: Place, destination: Place, rideType: string | null, source: 'history_list' | 'receipt' | 'home') {
+      gw.track('ride_booked_again', {
+        from_booking_id: fromBookingId,
+        pickup_area: pickup.area,
+        destination_area: destination.area,
+        ride_type: rideType,
+        source
+      })
     },
 
     // ── CANCELLATION ──────────────────────────────────────────────────────────

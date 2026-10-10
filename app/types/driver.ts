@@ -9,4 +9,6 @@ export interface Driver {
   totalRides: number
   eta: number
   phone?: string
+  /** Ride categories this driver's vehicle serves */
+  rideTypes: import('./ride').RideType[]
 }

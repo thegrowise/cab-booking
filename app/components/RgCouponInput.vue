@@ -1,48 +1,47 @@
 <template>
   <div>
     <!-- Applied coupon -->
-    <div v-if="appliedCoupon" class="flex items-center justify-between bg-green-50 border border-green-200 rounded-xl p-3">
-      <div class="flex items-center gap-2">
-        <span class="text-green-600">🎉</span>
-        <div>
-          <div class="text-sm font-semibold text-green-800">{{ appliedCoupon.code }}</div>
-          <div class="text-xs text-green-600">{{ appliedCoupon.description }}</div>
+    <div v-if="appliedCoupon" class="flex items-center justify-between gap-3 bg-green-50 border border-green-200 rounded-xl p-3">
+      <div class="flex items-center gap-2 min-w-0">
+        <RgIcon name="tag" :size="18" class="text-green-600" />
+        <div class="min-w-0">
+          <div class="text-sm font-semibold text-green-800 font-mono">{{ appliedCoupon.code }}</div>
+          <div class="text-xs text-green-700 truncate">{{ appliedCoupon.description }}</div>
         </div>
       </div>
-      <button class="text-red-500 hover:text-red-700 font-medium text-sm" @click="removeCoupon">Remove</button>
+      <button class="text-red-600 hover:text-red-700 font-semibold text-sm shrink-0" :disabled="disabled" @click="$emit('remove')">Remove</button>
     </div>
 
-    <!-- Coupon input -->
+    <!-- Coupon entry -->
     <div v-else>
-      <div class="flex gap-2">
+      <form class="flex gap-2" @submit.prevent="submit(code)">
+        <label for="coupon-code" class="sr-only">Coupon code</label>
         <input
+          id="coupon-code"
           v-model="code"
           type="text"
+          autocomplete="off"
           placeholder="Enter coupon code"
-          class="flex-1 border border-gray-200 rounded-xl px-4 py-3 text-sm uppercase font-mono focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
-          :class="error ? 'border-red-300 bg-red-50' : ''"
-          @keydown.enter="applyCoupon"
+          class="rg-input uppercase font-mono"
+          :class="error ? 'rg-input-error' : ''"
+          :disabled="disabled"
           @input="error = ''"
         />
-        <button
-          class="bg-primary text-white rounded-xl px-4 py-3 font-semibold text-sm hover:bg-primary-600 transition-colors whitespace-nowrap disabled:opacity-50"
-          :disabled="!code.trim()"
-          @click="applyCoupon"
-        >
-          Apply
-        </button>
-      </div>
-      <p v-if="error" class="mt-1.5 text-xs text-red-500">{{ error }}</p>
+        <button type="submit" class="rg-btn-primary px-4 whitespace-nowrap" :disabled="!code.trim() || disabled">Apply</button>
+      </form>
+      <p v-if="error" class="rg-field-error flex items-center gap-1"><RgIcon name="alert" :size="12" /> {{ error }}</p>
 
-      <!-- Quick coupons -->
-      <div class="mt-2 flex gap-2 overflow-x-auto no-scrollbar pb-1">
+      <div class="mt-3 flex gap-2 overflow-x-auto no-scrollbar pb-1">
         <button
           v-for="c in quickCoupons"
           :key="c.code"
-          class="flex-shrink-0 text-xs border border-primary/30 text-primary bg-primary-50 px-2.5 py-1 rounded-full font-medium hover:bg-primary-100 transition-colors"
+          type="button"
+          class="shrink-0 text-left border border-dashed border-primary/40 bg-primary-50 rounded-xl px-3 py-2 hover:bg-primary-100 transition-colors"
+          :disabled="disabled"
           @click="applyDirect(c.code)"
         >
-          {{ c.code }}
+          <div class="text-xs font-bold font-mono text-primary">{{ c.code }}</div>
+          <div class="text-[11px] text-gray-600 whitespace-nowrap">{{ c.description }}</div>
         </button>
       </div>
     </div>
@@ -51,51 +50,32 @@
 
 <script setup lang="ts">
 import type { Coupon } from '~/types/ride'
-import { COUPONS, findCoupon } from '~/data/coupons'
+import { COUPONS } from '~/data/coupons'
 
 const props = defineProps<{
   appliedCoupon: Coupon | null
-  currentFare: number
+  /** Applies a code and reports why it failed; validation and tracking live in the store */
+  apply: (code: string) => { success: boolean; error?: string }
+  disabled?: boolean
 }>()
 
-const emit = defineEmits<{
-  'coupon:applied': [coupon: Coupon]
-  'coupon:removed': []
-}>()
+defineEmits<{ remove: [] }>()
 
 const code = ref('')
 const error = ref('')
 
-const quickCoupons = COUPONS.filter(c => !c.expired).slice(0, 4)
+const quickCoupons = COUPONS.filter(c => !c.expired)
 
-function applyCoupon() {
+function submit(value: string) {
   error.value = ''
-  const found = findCoupon(code.value)
-  if (!found) {
-    error.value = 'Invalid coupon code'
-    useTracking().couponFailed(code.value.toUpperCase(), 'invalid_code')
-    return
-  }
-  if (found.expired) {
-    error.value = 'This coupon has expired'
-    useTracking().couponExpired(found.code)
-    return
-  }
-  if (found.minFare && props.currentFare < found.minFare) {
-    error.value = `Minimum fare of ₹${found.minFare} required`
-    useTracking().couponFailed(found.code, 'min_fare_not_met')
-    return
-  }
-  emit('coupon:applied', found)
-  code.value = ''
+  const result = props.apply(value)
+  if (result.success) code.value = ''
+  else error.value = result.error ?? 'This coupon can’t be applied'
 }
 
 function applyDirect(c: string) {
+  useTracking().couponSelected(c)
   code.value = c
-  applyCoupon()
-}
-
-function removeCoupon() {
-  emit('coupon:removed')
+  submit(c)
 }
 </script>

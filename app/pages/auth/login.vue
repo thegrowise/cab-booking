@@ -1,68 +1,66 @@
 <template>
-  <div class="min-h-screen flex items-center justify-center px-4 py-12">
+  <div class="min-h-[calc(100vh-7rem)] flex items-center justify-center px-4 py-10">
     <div class="w-full max-w-sm">
-      <!-- Logo -->
-      <div class="text-center mb-8">
-        <div class="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center mx-auto mb-3">
-          <span class="text-white font-bold text-3xl">R</span>
-        </div>
-        <h1 class="text-2xl font-extrabold text-gray-900">Welcome back</h1>
-        <p class="text-gray-500 text-sm mt-1">Sign in to continue your journey</p>
+      <div class="text-center mb-7">
+        <div class="w-14 h-14 bg-primary rounded-2xl flex items-center justify-center mx-auto mb-3"><RgIcon name="car" :size="28" class="text-white" /></div>
+        <h1 class="rg-page-title">Welcome back</h1>
+        <p class="rg-page-subtitle">Sign in to book rides and see your trips.</p>
       </div>
 
-      <!-- Demo user quick login -->
+      <p class="rg-demo-note mb-5">
+        <RgIcon name="info" :size="14" class="mt-0.5" />
+        Demo sign-in: there are no passwords, and accounts live only in this browser.
+      </p>
+
+      <!-- Demo accounts -->
       <div class="mb-6">
-        <p class="text-xs text-gray-500 text-center mb-3 font-medium uppercase tracking-wide">Demo accounts</p>
+        <p class="text-xs text-gray-500 text-center mb-3 font-semibold uppercase tracking-wide">Try a demo account</p>
         <div class="space-y-2">
           <button
             v-for="demo in demoUsers"
             :key="demo.id"
-            class="w-full flex items-center gap-3 p-3 bg-white rounded-2xl border-2 border-gray-100 hover:border-primary hover:bg-primary-50 transition-all text-left"
+            class="w-full flex items-center gap-3 p-3 bg-white rounded-2xl border-2 border-gray-100 hover:border-primary hover:bg-primary-50 transition-colors text-left disabled:opacity-60"
+            :disabled="loading"
             @click="loginAsDemo(demo.id)"
           >
-            <div class="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white font-bold flex-shrink-0">
-              {{ demo.avatar }}
-            </div>
-            <div>
-              <div class="font-semibold text-gray-900 text-sm">{{ demo.name }}</div>
-              <div class="text-xs text-gray-500">{{ demo.customerType.replace('_', ' ') }} • {{ demo.totalRides }} rides</div>
-            </div>
-            <span class="ml-auto text-primary text-lg">→</span>
+            <span class="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white font-bold shrink-0">{{ demo.avatar }}</span>
+            <span class="min-w-0">
+              <span class="block font-semibold text-gray-900 text-sm">{{ demo.name }}</span>
+              <span class="block text-xs text-gray-500">{{ segment(demo.customerType) }} · {{ demo.totalRides }} rides · {{ demo.city }}</span>
+            </span>
+            <RgIcon name="chevron-right" :size="18" class="ml-auto text-primary" />
           </button>
         </div>
       </div>
 
       <div class="relative mb-6">
         <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-gray-200" /></div>
-        <div class="relative text-center"><span class="bg-gray-50 px-3 text-xs text-gray-400">or sign in manually</span></div>
+        <div class="relative text-center"><span class="bg-gray-50 px-3 text-xs text-gray-400">or use your email</span></div>
       </div>
 
-      <!-- Form -->
-      <form class="space-y-4" @submit.prevent="handleLogin">
+      <form class="space-y-4" novalidate @submit.prevent="handleLogin">
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Email / Phone</label>
+          <label for="login-email" class="rg-label">Email</label>
           <input
+            id="login-email"
             v-model="form.email"
-            type="text"
+            type="email"
+            autocomplete="email"
             placeholder="rahul@example.com"
-            class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
-            :class="errors.email ? 'border-red-300' : ''"
+            class="rg-input"
+            :class="errors.email ? 'rg-input-error' : ''"
+            @input="errors.email = ''"
           />
-          <p v-if="errors.email" class="mt-1 text-xs text-red-500">{{ errors.email }}</p>
+          <p v-if="errors.email" class="rg-field-error">{{ errors.email }}</p>
         </div>
-
-        <button
-          type="submit"
-          class="w-full bg-primary text-white rounded-xl px-6 py-3 font-semibold hover:bg-primary-600 transition-colors disabled:opacity-50"
-          :disabled="loading"
-        >
-          {{ loading ? 'Signing in...' : 'Continue' }}
+        <button type="submit" class="rg-btn-primary rg-btn-lg w-full" :disabled="loading">
+          {{ loading ? 'Signing in…' : 'Continue' }}
         </button>
       </form>
 
       <p class="text-center text-sm text-gray-500 mt-6">
         New to RideGo?
-        <NuxtLink to="/auth/signup" class="text-primary font-semibold">Sign up</NuxtLink>
+        <NuxtLink :to="{ path: '/auth/signup', query: route.query }" class="text-primary font-semibold">Create an account</NuxtLink>
       </p>
     </div>
   </div>
@@ -70,42 +68,50 @@
 
 <script setup lang="ts">
 const router = useRouter()
+const route = useRoute()
 const userStore = useUserStore()
+const toast = useToast()
 
 const form = reactive({ email: '' })
 const errors = reactive({ email: '' })
 const loading = ref(false)
 
 const demoUsers = computed(() => userStore.getDemoUsers())
+const segment = (t: string) => ({ new_user: 'New rider', active_user: 'Active rider', frequent_rider: 'Frequent rider', premium_user: 'Premium rider' }[t] ?? t)
+
+// Only same-site paths are honoured as a post-login destination
+function destination(): string {
+  const r = route.query.redirect
+  return typeof r === 'string' && r.startsWith('/') && !r.startsWith('//') ? r : '/'
+}
 
 async function loginAsDemo(userId: string) {
+  if (loading.value) return
   loading.value = true
   const success = await userStore.login(userId)
   if (success) {
     useTracking().userLoggedIn(userId, 'demo', true)
-    router.push('/')
+    toast.success(`Signed in as ${userStore.currentUser?.name.split(' ')[0]}.`)
+    router.push(destination())
   }
   loading.value = false
 }
 
 async function handleLogin() {
   errors.email = ''
-  if (!form.email.trim()) {
-    errors.email = 'Please enter your email or phone'
-    return
-  }
+  const email = form.email.trim()
+  if (!email) { errors.email = 'Enter your email address'; return }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { errors.email = 'Enter a valid email address'; return }
+  if (loading.value) return
   loading.value = true
-  const success = await userStore.loginByEmail(form.email.trim())
+  const success = await userStore.loginByEmail(email)
   if (success) {
     useTracking().userLoggedIn(userStore.currentUser!.id, 'email', true)
-    router.push('/')
+    toast.success(`Signed in as ${userStore.currentUser?.name.split(' ')[0]}.`)
+    router.push(destination())
   } else {
-    errors.email = 'No account found. Try a demo account above.'
+    errors.email = 'No account with this email on this browser. Create one, or use a demo account.'
   }
   loading.value = false
 }
-
-onMounted(() => {
-  useTracking().pageViewed('login', '/auth/login', { is_logged_in: false })
-})
 </script>
