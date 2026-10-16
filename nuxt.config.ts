@@ -24,7 +24,8 @@ export default defineNuxtConfig({
           href: 'https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap'
         }
       ],
-      script: [{ src: '/growise.js' }]
+      // GoWise Web SDK v2 (CDN) — same SDK as ShopEase / MedGo
+      script: [{ src: 'https://cdn.thegrowise.com/web-v2/dist/growise.umd.js' }]
     }
   },
 
@@ -35,6 +36,10 @@ export default defineNuxtConfig({
       growiseApiKey: process.env.NUXT_PUBLIC_GROWISE_API_KEY || '',
       growiseEndpoint: process.env.NUXT_PUBLIC_GROWISE_ENDPOINT || '',
       growiseGateway: process.env.NUXT_PUBLIC_GROWISE_GATEWAY || 'http://localhost:8082',
+      // 'qc' forces the QC endpoints (like ShopEase); empty lets the SDK pick local/prod.
+      growiseEnv: process.env.NUXT_PUBLIC_GROWISE_ENV || '',
+      // Base for /identify, /logout, /device/register. Empty = endpoint minus "/track".
+      growiseEventsBase: process.env.NUXT_PUBLIC_GROWISE_EVENTS_BASE || '',
       appVersion: '1.0.0-ridego',
       // The dev panel can override the API key and wipe identities. `nuxt dev` shows it
       // unless NUXT_PUBLIC_DEV_PANEL=false; production builds ignore that flag and need

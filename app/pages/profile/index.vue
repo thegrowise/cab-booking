@@ -260,8 +260,7 @@ function togglePref(key: PrefKey) {
 }
 
 function handleLogout() {
-  if (user.value) useTracking().userLoggedOut(user.value.id, user.value.totalRides)
-  userStore.logout()
+  userStore.logout() // SDK logout -> GoWise /logout + $logout (same as ShopEase)
   toast.info('You’re signed out.')
   router.push('/')
 }

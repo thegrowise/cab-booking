@@ -90,7 +90,6 @@ async function loginAsDemo(userId: string) {
   loading.value = true
   const success = await userStore.login(userId)
   if (success) {
-    useTracking().userLoggedIn(userId, 'demo', true)
     toast.success(`Signed in as ${userStore.currentUser?.name.split(' ')[0]}.`)
     router.push(destination())
   }
@@ -106,7 +105,6 @@ async function handleLogin() {
   loading.value = true
   const success = await userStore.loginByEmail(email)
   if (success) {
-    useTracking().userLoggedIn(userStore.currentUser!.id, 'email', true)
     toast.success(`Signed in as ${userStore.currentUser?.name.split(' ')[0]}.`)
     router.push(destination())
   } else {

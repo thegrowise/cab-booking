@@ -13,15 +13,12 @@ export default defineNuxtPlugin(async nuxtApp => {
 
   await gw.init()
 
-  // Re-identify only when the SDK's stored user differs from the local session.
-  // Doing it on every reload sent a duplicate $identify + $set per page load.
+  // Re-identify only when the SDK's stored user differs from the local session
+  // (first load after sign-in, or riders migrated from the old SDK / old id).
+  // Doing it on every reload would log a new login + session per page load.
   const userStore = useUserStore()
-  if (userStore.user && gw.snapshot().userId !== userStore.user.id) {
-    const u = userStore.user
-    gw.identify(
-      { Identity: u.id, Name: u.name, Email: u.email, Phone: u.phone },
-      userStore.growiseTraits()
-    )
+  if (userStore.user && gw.snapshot().userId !== userStore.user.email) {
+    userStore.identifyCurrent()
   }
 
   // ── SPA page views ────────────────────────────────────────────────────────

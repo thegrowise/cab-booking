@@ -1,5 +1,7 @@
 import { defineStore } from 'pinia'
 import type { RideGoUser } from '~/types/user'
+import type { GrowiseSiteTraits } from '~/types/growise'
+import { sitePhone } from '~/utils/growise-config'
 
 const STORAGE_KEY = 'ridego_user'
 const REGISTRY_KEY = 'ridego_accounts'
@@ -104,14 +106,25 @@ export const useUserStore = defineStore('user', () => {
     useHistoryStore().loadFor(currentUser.value?.id)
   }
 
+  // GoWise Site traits — same shape as ShopEase / MedGo: Identity is the email.
+  function siteTraits(): GrowiseSiteTraits | null {
+    const u = currentUser.value
+    if (!u) return null
+    return { Identity: u.email, Name: u.name, Email: u.email, Phone: sitePhone(u.phone) }
+  }
+
+  /** Identify the signed-in rider with GoWise (login / signup only — never on profile edits). */
+  function identifyCurrent() {
+    const site = siteTraits()
+    if (!site) return
+    useGrowise().identify(site, growiseTraits())
+  }
+
   function signIn(found: RideGoUser) {
     currentUser.value = { ...found }
     persist()
     loadAccountData()
-    useGrowise().identify(
-      { Identity: found.id, Name: found.name, Email: found.email, Phone: found.phone },
-      growiseTraits()
-    )
+    identifyCurrent()
   }
 
   async function login(userId: string) {
@@ -156,20 +169,7 @@ export const useUserStore = defineStore('user', () => {
     currentUser.value = newUser
     persist()
     loadAccountData()
-
-    const gw = useGrowise()
-    gw.identify(
-      { Identity: newUser.id, Name: newUser.name, Email: newUser.email, Phone: newUser.phone },
-      {
-        city: newUser.city,
-        customer_type: 'new_user',
-        wallet_balance: 0,
-        total_rides: 0,
-        completed_rides: 0,
-        cancelled_rides: 0,
-        total_spend: 0
-      }
-    )
+    identifyCurrent()
     return newUser
   }
 
@@ -190,7 +190,7 @@ export const useUserStore = defineStore('user', () => {
       Site: {
         Name: currentUser.value.name,
         Email: currentUser.value.email,
-        Phone: currentUser.value.phone
+        Phone: sitePhone(currentUser.value.phone)
       },
       city: currentUser.value.city,
       ...traits,
@@ -287,6 +287,7 @@ export const useUserStore = defineStore('user', () => {
     recordRideSpend,
     recordRideCancelled,
     growiseTraits,
+    identifyCurrent,
     getDemoUsers
   }
 })

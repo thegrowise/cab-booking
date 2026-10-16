@@ -1,11 +1,15 @@
 # Ride Go → GoWise event reference
 
-Every event the Ride Go web app sends through the GoWise Web SDK (`public/growise.js`, v1.1.0).
+Every event the Ride Go web app sends through the GoWise Web SDK v2, loaded from CDN
+(`https://cdn.thegrowise.com/web-v2/dist/growise.umd.js`, same SDK as ShopEase / MedGo; loader in
+`app/utils/growise-config.ts`).
 All custom events go through `app/composables/useTracking.ts` → `useGrowise().track()`; nothing calls
 `window.growise` directly. The SDK is initialised once, in `app/plugins/growise.client.ts`.
 
-**Delivery:** the app hands each event to `navigator.sendBeacon` for the configured endpoint
-(`NUXT_PUBLIC_GROWISE_ENDPOINT`). Whether the GoWise backend accepts, stores or displays an event has
+**Delivery:** the SDK queues events locally (IndexedDB) and sends them in batches to the configured
+endpoint (`NUXT_PUBLIC_GROWISE_ENDPOINT`, or the SDK's local/prod default) — when 5 are queued, for a few
+key events immediately, and on page hide. Each event has a unique `event_id` and leaves the queue only
+after the server acknowledges it. Whether the GoWise backend accepts, stores or displays an event has
 **not** been verified for this app. See "Verification status" at the end.
 
 ## Conventions
@@ -14,8 +18,8 @@ All custom events go through `app/composables/useTracking.ts` → `useGrowise().
 - Money is in rupees (`INR`), as numbers. `currency: "INR"` accompanies fare amounts.
 - **Ride context (RC)** is added to booking and trip events: `booking_id`, `ride_type`, `pickup_area`,
   `pickup_city`, `destination_area`, `destination_city`, `distance_km`, `estimated_fare`, `currency`.
-- Every event also carries the SDK's own properties (`$session_id`, `$device_id`, `$url`, `$lib_version`,
-  `$app_version`, …) and `$anon_id` (added by `useGrowise`).
+- Every event also carries the SDK's own properties (`$session_id`, `$device_id`, `$lib_version`,
+  `$app_version`, …) plus the guest id (Grow ID) and, once signed in, the user id (the rider's email).
 - Not sent: payment details (none are collected), passwords (none exist), comments and support-ticket
   text, saved-place addresses (only `saved_places_count` goes to the profile).
 
@@ -23,13 +27,30 @@ All custom events go through `app/composables/useTracking.ts` → `useGrowise().
 
 | Event | Trigger |
 |---|---|
-| `$init` | SDK initialised (once per page load) |
-| `app_installed` | First load on a device |
-| `app_opened` | Every full page load |
-| `app_closed` | Browser `beforeunload` (SDK behaviour; also fires on refresh) |
-| `$session_start` | New SDK session (30 min inactivity). Can be missed on the first load if the 100 ms timer fires before `init()` — an SDK issue, not fixed here |
-| `$identify` | Sign-in/signup, and on load only when the SDK's stored user differs from the signed-in user |
-| `$set` | Profile traits (`profilePush`): sign-in, profile edits, ride totals |
+| `$sdk_initialized` | SDK initialised (once per page load) |
+| `$app_installed` / `$app_first_open` | First load on a device |
+| `$app_opened` | Every full page load, and after sign-in |
+| `$app_backgrounded` | Tab hidden |
+| `$session_started` | New SDK session, and after sign-in |
+| `$set` / `$incr` | Profile traits (`profilePush` / `profileIncrement`): profile edits, ride totals |
+| `$logout` | Sign out (SDK `logout()`) |
+
+Sent by the GoWise **server** (event-service), not the SDK:
+
+| Event | Trigger |
+|---|---|
+| `$user_registered` | First `/identify` for a new rider (signup) |
+| `$user_logged_in` | Every `/identify` (sign-in, signup) |
+
+### Identity (same as ShopEase / MedGo)
+
+- **Grow ID:** on first load the SDK calls `/device/register` and gets a server-assigned guest id (`gw_guest_…`).
+- **Sign-in / signup:** `userStore.identifyCurrent()` → `onUserLogin({ Site, ...traits })` → server `/identify`.
+  `Site` = `Identity` (the rider's **email**), `Name`, `Email`, `Phone`; the profile traits (`city`,
+  `customer_type`, `total_rides`, …) are sent flat so each becomes its own user property.
+- **Reloads:** identify again only when the SDK's user id differs from the signed-in rider's email.
+- **Profile edits:** `profilePush` only — never identify (that would log a new login and session).
+- **Sign out:** `/logout` gives the browser a **new** guest id, so the next rider is not merged with this one.
 
 ## Pages
 
@@ -39,11 +60,11 @@ All custom events go through `app/composables/useTracking.ts` → `useGrowise().
 
 ## Account
 
+Signup, sign-in and sign-out are **not** tracked by the app (same as ShopEase / MedGo): GoWise records
+`$user_registered`, `$user_logged_in` and `$logout` itself (see above).
+
 | Event | Trigger | Properties |
 |---|---|---|
-| `user_signed_up` | Signup form saved | `user_id`, `name`, `city`, `phone_masked` |
-| `user_logged_in` | Demo account or email sign-in succeeds | `user_id`, `method` (`demo`/`email`), `is_returning_user` |
-| `user_logged_out` | Sign Out on Account | `user_id`, `total_rides` |
 | `profile_viewed` | Account page opened | — |
 | `profile_updated` | Personal info saved **with changes** | `updated_fields` (only the changed ones) |
 | `saved_place_added` | Home/Work/Other saved on Account | `place_type` |

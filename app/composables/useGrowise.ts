@@ -1,7 +1,10 @@
-import type { GrowiseLoginTraits, GrowiseSDK } from '~/types/growise'
+import type { GrowiseSiteTraits } from '~/types/growise'
+import { getGrowise, growiseInitOptions, loadGrowiseCdn } from '~/utils/growise-config'
 
 /**
- * Thin wrapper over the Growise Web SDK (public/growise.js).
+ * Thin wrapper over the official GoWise Web SDK v2 (CDN) — same SDK as ShopEase / MedGo.
+ * The SDK handles device registration (Grow ID / guest id), server-side identify and
+ * logout, sessions, batching and the push-permission prompt.
  * Module-level singleton — same instance across all components.
  */
 
@@ -16,15 +19,17 @@ export interface LoggedEvent {
 const ready = ref(false)
 const apiKey = ref('')
 const eventLog = ref<LoggedEvent[]>([])
+// Calls made before init() finishes. Once initialised, the SDK itself buffers
+// events until its device registration completes.
 const queue: Array<() => void> = []
 let logSeq = 0
-let initStarted = false
+let initPromise: Promise<void> | null = null
 
 const API_KEY_STORAGE = 'ridego_growise_key'
 const MAX_LOG = 200
 
-function sdk(): GrowiseSDK | undefined {
-  return import.meta.client ? window.growise : undefined
+function sdk() {
+  return import.meta.client ? getGrowise() : null
 }
 
 function log(kind: LoggedEvent['kind'], name: string, props?: Record<string, unknown>) {
@@ -39,7 +44,7 @@ function log(kind: LoggedEvent['kind'], name: string, props?: Record<string, unk
 }
 
 function whenReady(fn: () => void) {
-  if (ready.value && sdk()?.isInitialized) {
+  if (ready.value) {
     fn()
     return
   }
@@ -47,23 +52,10 @@ function whenReady(fn: () => void) {
 }
 
 function flush() {
-  while (queue.length) queue.shift()!()
-}
-
-function waitForScript(timeoutMs = 8000): Promise<GrowiseSDK | null> {
-  return new Promise(resolve => {
-    if (sdk()) return resolve(sdk()!)
-    const started = Date.now()
-    const timer = setInterval(() => {
-      if (sdk()) {
-        clearInterval(timer)
-        resolve(sdk()!)
-      } else if (Date.now() - started > timeoutMs) {
-        clearInterval(timer)
-        resolve(null)
-      }
-    }, 50)
-  })
+  while (queue.length) {
+    const fn = queue.shift()
+    try { fn?.() } catch (e) { console.warn('[RideGo] queued GoWise call failed', e) }
+  }
 }
 
 export function useGrowise() {
@@ -79,49 +71,45 @@ export function useGrowise() {
     return String(config.public.growiseApiKey || '')
   }
 
-  async function init(force = false) {
-    if (!import.meta.client) return
-    if (initStarted && !force) return
-    initStarted = true
+  function init(force = false): Promise<void> {
+    if (!import.meta.client) return Promise.resolve()
+    if (initPromise && !force) return initPromise
 
-    const key = resolveApiKey()
-    if (!key) {
-      log('system', 'init_skipped', { reason: 'no_api_key' })
-      console.warn('[RideGo] No Growise API key set. Open the dev panel and paste a gk_... key.')
-      return
-    }
+    initPromise = (async () => {
+      const key = resolveApiKey()
+      if (!key) {
+        log('system', 'init_skipped', { reason: 'no_api_key' })
+        console.warn('[RideGo] No Growise API key set. Open the dev panel and paste a gk_... key.')
+        return
+      }
 
-    const instance = await waitForScript()
-    if (!instance) {
-      log('system', 'init_failed', { reason: 'sdk_script_not_loaded' })
-      return
-    }
+      try {
+        const growise = await loadGrowiseCdn()
+        const options = growiseInitOptions(String(config.public.growiseEnv || '') || undefined, {
+          appVersion: String(config.public.appVersion),
+          growiseEventsBase: String(config.public.growiseEventsBase || ''),
+          growiseEndpoint: String(config.public.growiseEndpoint || ''),
+          growiseGateway: String(config.public.growiseGateway || '')
+        })
+        await growise.init(key, options)
 
-    // Patch track() BEFORE init() so $init/app_installed/app_opened also get $anon_id
-    if (!(instance as any).__ridegoAnonPatch) {
-      const originalTrack = instance.track.bind(instance)
-      instance.track = (name: string, props: Record<string, unknown> = {}) =>
-        originalTrack(name, { $anon_id: instance.distinctId, ...props })
-      ;(instance as any).__ridegoAnonPatch = true
-    }
-
-    const options: Record<string, string> = {
-      appVersion: String(config.public.appVersion),
-      gateway: String(config.public.growiseGateway)
-    }
-    if (config.public.growiseEndpoint) options.endpoint = String(config.public.growiseEndpoint)
-
-    await instance.init(key, options)
-
-    apiKey.value = key
-    ready.value = true
-    log('system', 'sdk_initialized', {
-      api_key: `${key.slice(0, 8)}…`,
-      device_id: instance.distinctId,
-      session_id: instance.sessionId,
-      user_id: instance.userId
-    })
-    flush()
+        apiKey.value = key
+        ready.value = true
+        log('system', 'sdk_initialized', {
+          api_key: `${key.slice(0, 8)}…`,
+          events_base: options.eventsBase ?? '(sdk default)',
+          guest_id: growise.identity?.getGuestId?.() ?? null,
+          user_id: growise.identity?.getUserId?.() ?? null
+        })
+        flush()
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e)
+        log('system', 'init_failed', { error: msg })
+        console.warn('[RideGo] GoWise SDK init failed:', msg)
+        ready.value = false
+      }
+    })()
+    return initPromise
   }
 
   function track(event: string, props: Record<string, unknown> = {}) {
@@ -131,18 +119,14 @@ export function useGrowise() {
     })
   }
 
-  function identify(
-    site: { Identity: string; Name?: string; Email?: string; Phone?: string },
-    customTraits: Record<string, unknown> = {}
-  ) {
-    const traits: GrowiseLoginTraits = { Site: site }
-    log('identify', '$identify', { ...site, ...customTraits })
+  /**
+   * Login / signup: onUserLogin -> server /identify. Profile traits are sent flat next
+   * to Site so GoWise stores each one as its own user property (it only expands Site).
+   */
+  function identify(site: GrowiseSiteTraits, customTraits: Record<string, unknown> = {}) {
+    log('identify', 'identify', { ...site, ...customTraits })
     whenReady(() => {
-      try {
-        sdk()?.onUserLogin(traits)
-        const { Identity, ...profileSite } = site
-        sdk()?.profilePush({ Site: profileSite, ...customTraits })
-      } catch (e) { console.warn('[RideGo] identify error', e) }
+      try { sdk()?.onUserLogin({ Site: site, ...customTraits }) } catch (e) { console.warn('[RideGo] identify error', e) }
     })
   }
 
@@ -160,47 +144,50 @@ export function useGrowise() {
     })
   }
 
+  /** Server-side logout: the SDK gets a fresh guest id, so the next rider isn't merged with this one. */
   function logout() {
     log('system', 'logout')
     whenReady(() => {
-      try { sdk()?.logout() } catch (e) { console.warn('[RideGo] logout error', e) }
+      try { void sdk()?.logout() } catch (e) { console.warn('[RideGo] logout error', e) }
     })
   }
 
   function setOptOut(value: boolean) {
     log('system', value ? 'opt_out' : 'opt_in')
-    try { sdk()?.setOptOut(value) } catch (e) { console.warn('[RideGo] setOptOut error', e) }
+    whenReady(() => {
+      try { sdk()?.setOptOut(value) } catch (e) { console.warn('[RideGo] setOptOut error', e) }
+    })
   }
 
   async function setApiKey(key: string) {
     if (!import.meta.client || !keyOverrideAllowed) return
     localStorage.setItem(API_KEY_STORAGE, key.trim())
+    ready.value = false
     await init(true)
   }
 
-  function resetIdentity(freshDevice = true) {
+  /**
+   * Dev-panel "wipe identity": a server-side logout, which gives this browser a new
+   * guest id (Grow ID). The CDN SDK keeps its own device id, so `freshDevice` no
+   * longer changes anything — kept for the panel's existing calls.
+   */
+  function resetIdentity(_freshDevice = true) {
     if (!import.meta.client) return
-    const keys = [
-      '_growise_uid', '_growise_traits', '_growise_ptoken',
-      '_growise_sid', '_growise_lact', '_growise_init', '_growise_optout'
-    ]
-    keys.forEach(k => localStorage.removeItem(k))
-    if (freshDevice) {
-      localStorage.setItem('_growise_id', `gw_fp_demo${Math.random().toString(36).slice(2, 10)}`)
-    } else {
-      localStorage.removeItem('_growise_id')
-    }
-    log('system', 'identity_reset', { fresh_device: freshDevice })
+    log('system', 'identity_reset')
+    whenReady(() => {
+      try { void sdk()?.logout() } catch (e) { console.warn('[RideGo] resetIdentity error', e) }
+    })
   }
 
   function snapshot() {
     const s = sdk()
     return {
-      initialized: Boolean(s?.isInitialized),
-      userId: s?.userId ?? null,
-      deviceId: s?.distinctId ?? null,
-      sessionId: s?.sessionId ?? null,
-      optOut: Boolean(s?.optOut)
+      initialized: Boolean(s?.initialized) || ready.value,
+      userId: s?.identity?.getUserId?.() ?? null,
+      // Grow ID in the GoWise dashboard = server-assigned guest id
+      deviceId: s?.identity?.getGuestId?.() || s?.identity?.getDeviceId?.() || null,
+      sessionId: s?.session?.getSessionId?.() ?? null,
+      optOut: Boolean((s as { optOut?: boolean } | null)?.optOut)
     }
   }
 

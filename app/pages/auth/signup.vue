@@ -91,7 +91,7 @@ async function handleSignup() {
     phone: `+91${normalisedPhone()}`,
     city: form.city
   })
-  useTracking().userSignedUp(user.id, user.name, user.city, user.phone)
+  // GoWise logs $user_registered + $user_logged_in server-side on /identify (same as ShopEase)
   loading.value = false
   toast.success(`Welcome to RideGo, ${user.name.split(' ')[0]}! Try code NEWUSER on your first ride.`)
   router.push(destination())

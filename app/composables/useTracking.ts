@@ -22,17 +22,9 @@ export function useTracking() {
 
   return {
     // ── USER ─────────────────────────────────────────────────────────────────
-    userSignedUp(userId: string, name: string, city: string, phone: string) {
-      gw.track('user_signed_up', { user_id: userId, name, city, phone_masked: phone.slice(-4).padStart(10, '*') })
-    },
-
-    userLoggedIn(userId: string, method: string, isReturning: boolean) {
-      gw.track('user_logged_in', { user_id: userId, method, is_returning_user: isReturning })
-    },
-
-    userLoggedOut(userId: string, totalRides: number) {
-      gw.track('user_logged_out', { user_id: userId, total_rides: totalRides })
-    },
+    // Signup / login / logout are not tracked here (same as ShopEase / MedGo).
+    // GoWise records them itself: $user_registered + $user_logged_in on /identify,
+    // $logout from the SDK's logout().
 
     userProfileUpdated(fields: string[]) {
       gw.track('user_profile_updated', { updated_fields: fields })
