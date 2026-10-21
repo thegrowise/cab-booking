@@ -4,6 +4,8 @@ export interface RideGoUser {
   email: string
   phone: string
   city: string
+  state?: string
+  gender?: 'M' | 'F'
   avatar?: string
   customerType: 'new_user' | 'active_user' | 'frequent_rider' | 'premium_user'
   totalRides: number

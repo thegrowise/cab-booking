@@ -49,9 +49,14 @@
               v-model="editForm[field.key]"
               :type="field.type"
               :autocomplete="field.autocomplete"
+              :maxlength="field.maxlength"
+              :readonly="field.key === 'email'"
               class="rg-input"
-              :class="errors[field.key] ? 'rg-input-error' : ''"
+              :class="[errors[field.key] ? 'rg-input-error' : '', field.key === 'email' ? 'bg-gray-50 text-gray-500 cursor-not-allowed' : '']"
+              @input="sanitize(field.key)"
+              @blur="touch(field.key)"
             />
+            <p v-if="field.key === 'email'" class="text-xs text-gray-400 mt-1">Email is your account ID and can’t be changed.</p>
             <p v-if="errors[field.key]" class="rg-field-error">{{ errors[field.key] }}</p>
           </div>
           <div class="flex gap-2 pt-1">
@@ -169,12 +174,14 @@ const editing = ref(false)
 const editForm = reactive<Record<FieldKey, string>>({ name: '', email: '', phone: '', city: '' })
 const errors = reactive<Record<FieldKey, string>>({ name: '', email: '', phone: '', city: '' })
 
-const profileFields: { key: FieldKey; label: string; type: string; autocomplete: string }[] = [
-  { key: 'name', label: 'Full name', type: 'text', autocomplete: 'name' },
+const profileFields: { key: FieldKey; label: string; type: string; autocomplete: string; maxlength?: number }[] = [
+  { key: 'name', label: 'Full name', type: 'text', autocomplete: 'name', maxlength: 50 },
   { key: 'email', label: 'Email', type: 'email', autocomplete: 'email' },
-  { key: 'phone', label: 'Mobile number', type: 'tel', autocomplete: 'tel' },
-  { key: 'city', label: 'City', type: 'text', autocomplete: 'address-level2' },
+  { key: 'phone', label: 'Mobile number', type: 'tel', autocomplete: 'tel', maxlength: 13 },
+  { key: 'city', label: 'City', type: 'text', autocomplete: 'address-level2', maxlength: 40 },
 ]
+// A field shows its error once the user has left it (or tried to save)
+const touched = reactive<Record<FieldKey, boolean>>({ name: false, email: false, phone: false, city: false })
 
 const preferenceItems: { key: PrefKey; label: string; desc: string }[] = [
   { key: 'notifications', label: 'Ride notifications', desc: 'Driver and trip updates' },
@@ -204,28 +211,51 @@ const stats = computed(() => [
 function startEdit() {
   if (!user.value) return
   // Always start from the saved profile, so a cancelled edit leaves nothing behind
-  for (const f of profileFields) { editForm[f.key] = String(user.value[f.key] ?? ''); errors[f.key] = '' }
+  for (const f of profileFields) { editForm[f.key] = String(user.value[f.key] ?? ''); errors[f.key] = ''; touched[f.key] = false }
   editing.value = true
 }
 
+// Email is the account's identity (GoWise Identity too), so it is never edited here
+function validateField(key: FieldKey) {
+  switch (key) {
+    case 'name':
+      errors.name = editForm.name.trim().length >= 2 ? '' : 'Please enter your full name.'
+      break
+    case 'phone':
+      errors.phone = /^(\+91)?[6-9]\d{9}$/.test(editForm.phone) ? '' : 'Enter a valid 10-digit mobile number (e.g. 9876543210 or +919876543210).'
+      break
+    case 'city':
+      errors.city = editForm.city.trim().length >= 2 ? '' : 'Enter a valid city name (letters only).'
+      break
+  }
+}
+
+function touch(key: FieldKey) {
+  touched[key] = true
+  validateField(key)
+}
+
+function sanitize(key: FieldKey) {
+  if (key === 'name') editForm.name = editForm.name.replace(/[^a-zA-Z\s.']/g, '')
+  // Digits only, with an optional leading +
+  if (key === 'phone') editForm.phone = editForm.phone.replace(/(?!^\+)\D/g, '')
+  if (key === 'city') editForm.city = editForm.city.replace(/[^a-zA-Z\s]/g, '')
+  if (touched[key]) validateField(key)
+}
+
 function validate(): boolean {
-  errors.name = editForm.name.trim().length >= 2 ? '' : 'Enter your full name'
-  const email = editForm.email.trim().toLowerCase()
-  errors.email = !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
-    ? 'Enter a valid email address'
-    : email !== user.value?.email.toLowerCase() && userStore.emailTaken(email) ? 'Another account on this browser uses this email' : ''
-  errors.phone = /^(\+91)?[6-9]\d{9}$/.test(editForm.phone.replace(/[\s-]/g, '')) ? '' : 'Enter a 10-digit Indian mobile number'
-  errors.city = editForm.city.trim() ? '' : 'Enter your city'
-  return !errors.name && !errors.email && !errors.phone && !errors.city
+  const keys: FieldKey[] = ['name', 'phone', 'city']
+  keys.forEach(touch)
+  return keys.every(k => !errors[k])
 }
 
 function saveProfile() {
   if (!user.value || !validate()) return
   const next = {
-    name: editForm.name.trim(),
-    email: editForm.email.trim().toLowerCase(),
-    phone: editForm.phone.replace(/[\s-]/g, ''),
-    city: editForm.city.trim(),
+    name: editForm.name.trim().replace(/\s+/g, ' '),
+    email: user.value.email,
+    phone: editForm.phone,
+    city: editForm.city.trim().replace(/\s+/g, ' '),
   }
   const changed = (Object.keys(next) as FieldKey[]).filter(k => next[k] !== user.value![k])
   editing.value = false

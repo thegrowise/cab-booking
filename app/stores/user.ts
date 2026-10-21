@@ -2,9 +2,14 @@ import { defineStore } from 'pinia'
 import type { RideGoUser } from '~/types/user'
 import type { GrowiseSiteTraits } from '~/types/growise'
 import { sitePhone } from '~/utils/growise-config'
+import { createCredentialStore } from '~/utils/password'
 
 const STORAGE_KEY = 'ridego_user'
 const REGISTRY_KEY = 'ridego_accounts'
+// Passwords, keyed by lower-cased email (see utils/password)
+const credentials = createCredentialStore('ridego_credentials')
+
+export type LoginResult = 'ok' | 'not_found' | 'wrong_password'
 
 const DEMO_USERS: RideGoUser[] = [
   {
@@ -110,7 +115,7 @@ export const useUserStore = defineStore('user', () => {
   function siteTraits(): GrowiseSiteTraits | null {
     const u = currentUser.value
     if (!u) return null
-    return { Identity: u.email, Name: u.name, Email: u.email, Phone: sitePhone(u.phone) }
+    return { Identity: u.email, Name: u.name, Email: u.email, Phone: sitePhone(u.phone), ...(u.gender ? { Gender: u.gender } : {}) }
   }
 
   /** Identify the signed-in rider with GoWise (login / signup only — never on profile edits). */
@@ -134,12 +139,16 @@ export const useUserStore = defineStore('user', () => {
     return true
   }
 
-  async function loginByEmail(email: string) {
+  async function loginByEmail(email: string, password: string): Promise<LoginResult> {
     const q = email.trim().toLowerCase()
     const found = allAccounts().find(u => u.email.toLowerCase() === q)
-    if (!found) return false
+    if (!found) return 'not_found'
+    // Accounts created before passwords existed (and the demo riders) adopt the
+    // password used on their first sign-in
+    if (!credentials.has(q)) await credentials.set(q, password)
+    else if (!await credentials.verify(q, password)) return 'wrong_password'
     signIn(found)
-    return true
+    return 'ok'
   }
 
   function emailTaken(email: string): boolean {
@@ -147,13 +156,16 @@ export const useUserStore = defineStore('user', () => {
     return allAccounts().some(u => u.email.toLowerCase() === q)
   }
 
-  async function signup(userData: { name: string; email: string; phone: string; city: string }) {
+  async function signup(userData: { name: string; email: string; password: string; phone: string; gender: 'M' | 'F'; city: string; state: string }) {
+    await credentials.set(userData.email.trim().toLowerCase(), userData.password)
     const newUser: RideGoUser = {
       id: `usr_${Date.now()}`,
       name: userData.name,
       email: userData.email,
       phone: userData.phone,
+      gender: userData.gender,
       city: userData.city,
+      state: userData.state,
       avatar: userData.name.split(/\s+/).map(p => p[0]).join('').slice(0, 2).toUpperCase() || 'RG',
       customerType: 'new_user',
       totalRides: 0,
@@ -180,8 +192,11 @@ export const useUserStore = defineStore('user', () => {
     useGrowise().logout()
   }
 
-  function updateProfile(attrs: Partial<RideGoUser>) {
+  function updateProfile(changes: Partial<RideGoUser>) {
     if (!currentUser.value) return
+    // Email is the account's identity (GoWise Identity too): changing it would split
+    // the rider into two users, so it is never updated
+    const { email: _email, ...attrs } = changes
     currentUser.value = { ...currentUser.value, ...attrs }
     persist()
     // Saved addresses stay on the device; analytics only gets how many there are
@@ -251,6 +266,8 @@ export const useUserStore = defineStore('user', () => {
     if (!currentUser.value) return {}
     return {
       city: currentUser.value.city,
+      state: currentUser.value.state ?? null,
+      gender: currentUser.value.gender ?? null,
       customer_type: currentUser.value.customerType,
       total_rides: currentUser.value.totalRides,
       completed_rides: currentUser.value.completedRides,
