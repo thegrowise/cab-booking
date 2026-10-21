@@ -43,6 +43,15 @@ function log(kind: LoggedEvent['kind'], name: string, props?: Record<string, unk
   if (eventLog.value.length > MAX_LOG) eventLog.value.length = MAX_LOG
 }
 
+/**
+ * Plain, frozen-in-time copy of a payload. The SDK stores events in IndexedDB,
+ * which can't clone Vue reactive proxies (a ref'd array would make the put throw
+ * and the event be lost), and a live object could change before it is sent.
+ */
+function plain<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value ?? {}))
+}
+
 function whenReady(fn: () => void) {
   if (ready.value) {
     fn()
@@ -113,24 +122,27 @@ export function useGrowise() {
   }
 
   function track(event: string, props: Record<string, unknown> = {}) {
-    log('track', event, props)
+    const data = plain(props)
+    log('track', event, data)
     whenReady(() => {
-      try { sdk()?.track(event, props) } catch (e) { console.warn('[RideGo] track error', e) }
+      try { sdk()?.track(event, data) } catch (e) { console.warn('[RideGo] track error', e) }
     })
   }
 
   /** Login / signup: onUserLogin -> server /identify. Same shape ShopEase sends: { Site, Custom }. */
   function identify(site: GrowiseSiteTraits, customTraits: Record<string, unknown> = {}) {
     log('identify', 'identify', { ...site, ...customTraits })
+    const traits = plain({ Site: site, Custom: customTraits })
     whenReady(() => {
-      try { sdk()?.onUserLogin({ Site: site, Custom: customTraits }) } catch (e) { console.warn('[RideGo] identify error', e) }
+      try { sdk()?.onUserLogin(traits) } catch (e) { console.warn('[RideGo] identify error', e) }
     })
   }
 
   function profilePush(traits: Record<string, unknown>) {
-    log('profile', '$set', traits)
+    const data = plain(traits)
+    log('profile', '$set', data)
     whenReady(() => {
-      try { sdk()?.profilePush(traits) } catch (e) { console.warn('[RideGo] profilePush error', e) }
+      try { sdk()?.profilePush(data) } catch (e) { console.warn('[RideGo] profilePush error', e) }
     })
   }
 

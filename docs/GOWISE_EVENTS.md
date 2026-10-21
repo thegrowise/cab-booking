@@ -89,7 +89,7 @@ Totals are always absolute (`$set`), never increments.
 | `route_viewed` | Ride options opened (route map shown) | `pickup_area`, `destination_area`, `distance_km` |
 | `ride_options_viewed` | Ride options opened | `rides_count`, `cheapest_fare`, `distance_km` |
 | `ride_type_selected` | A ride card is chosen (not re-sent for the already-selected card) | `ride_type`, `ride_label`, `estimated_fare`, `list_position`, `currency` |
-| `ride_type_changed` | Selection moves to another ride type | `from_type`, `to_type`, `reason` |
+| `ride_type_changed` | Selection moves to another ride type | `from_type`, `to_type`, `reason` (`upgrade` = pricier ride, `downgrade` = cheaper) |
 | `ride_booked_again` | "Book again" from Home, My Rides or a receipt | `from_booking_id`, `pickup_area`, `destination_area`, `ride_type`, `source` (`home`/`history_list`/`receipt`) |
 
 ## Booking and coupons

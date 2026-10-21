@@ -107,7 +107,9 @@ function selectRide(ride: RideOption, position: number) {
   if (previous?.id === ride.id && bookingStore.current.stage === 'RIDE_SELECTED') return
   bookingStore.selectRide(ride)
   useTracking().rideTypeSelected(ride, fareFor(ride), position)
-  if (previous && previous.id !== ride.id) useTracking().rideTypeChanged(previous.id, ride.id)
+  if (previous && previous.id !== ride.id) {
+    useTracking().rideTypeChanged(previous.id, ride.id, fareFor(ride) > fareFor(previous) ? 'upgrade' : 'downgrade')
+  }
 }
 
 function proceed() {

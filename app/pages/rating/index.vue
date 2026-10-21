@@ -117,7 +117,7 @@ async function submit() {
     bookingId,
     bookingStore.current.driver?.id ?? '',
     rating.value,
-    selectedTags.value
+    [...selectedTags.value]
   )
   useTracking().rideFeedbackSubmitted(
     bookingId,
