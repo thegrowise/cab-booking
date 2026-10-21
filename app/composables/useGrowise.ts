@@ -119,14 +119,11 @@ export function useGrowise() {
     })
   }
 
-  /**
-   * Login / signup: onUserLogin -> server /identify. Profile traits are sent flat next
-   * to Site so GoWise stores each one as its own user property (it only expands Site).
-   */
+  /** Login / signup: onUserLogin -> server /identify. Same shape ShopEase sends: { Site, Custom }. */
   function identify(site: GrowiseSiteTraits, customTraits: Record<string, unknown> = {}) {
     log('identify', 'identify', { ...site, ...customTraits })
     whenReady(() => {
-      try { sdk()?.onUserLogin({ Site: site, ...customTraits }) } catch (e) { console.warn('[RideGo] identify error', e) }
+      try { sdk()?.onUserLogin({ Site: site, Custom: customTraits }) } catch (e) { console.warn('[RideGo] identify error', e) }
     })
   }
 

@@ -45,9 +45,9 @@ Sent by the GoWise **server** (event-service), not the SDK:
 ### Identity (same as ShopEase / MedGo)
 
 - **Grow ID:** on first load the SDK calls `/device/register` and gets a server-assigned guest id (`gw_guest_…`).
-- **Sign-in / signup:** `userStore.identifyCurrent()` → `onUserLogin({ Site, ...traits })` → server `/identify`.
+- **Sign-in / signup:** `userStore.identifyCurrent()` → `onUserLogin({ Site, Custom })` → server `/identify`.
   `Site` = `Identity` (the rider's **email**), `Name`, `Email`, `Phone`; the profile traits (`city`,
-  `customer_type`, `total_rides`, …) are sent flat so each becomes its own user property.
+  `customer_type`, `total_rides`, …) go in `Custom`, the same shape ShopEase sends.
 - **Reloads:** identify again only when the SDK's user id differs from the signed-in rider's email.
 - **Profile edits:** `profilePush` only — never identify (that would log a new login and session).
 - **Sign out:** `/logout` gives the browser a **new** guest id, so the next rider is not merged with this one.
