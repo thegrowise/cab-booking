@@ -23,8 +23,8 @@ export function useTracking() {
   return {
     // ── USER ─────────────────────────────────────────────────────────────────
     // Signup / login / logout are not tracked here (same as ShopEase / MedGo).
-    // GoWise records them itself: $user_registered + $user_logged_in on /identify,
-    // $logout from the SDK's logout().
+    // GoWise records signup/login itself: $user_registered + $user_logged_in on
+    // /identify. Logout (SDK logout() -> /logout) resets the identity but records no event.
 
     userProfileUpdated(fields: string[]) {
       gw.track('user_profile_updated', { updated_fields: fields })

@@ -290,7 +290,7 @@ function togglePref(key: PrefKey) {
 }
 
 function handleLogout() {
-  userStore.logout() // SDK logout -> GoWise /logout + $logout (same as ShopEase)
+  userStore.logout() // SDK logout -> GoWise /logout: new guest id, no event (same as ShopEase)
   toast.info('You’re signed out.')
   router.push('/')
 }

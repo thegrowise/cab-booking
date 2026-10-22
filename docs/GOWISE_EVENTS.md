@@ -33,7 +33,6 @@ after the server acknowledges it. Whether the GoWise backend accepts, stores or 
 | `$app_backgrounded` | Tab hidden |
 | `$session_started` | New SDK session, and after sign-in |
 | `$set` / `$incr` | Profile traits (`profilePush` / `profileIncrement`): profile edits, ride totals |
-| `$logout` | Sign out (SDK `logout()`) |
 
 Sent by the GoWise **server** (event-service), not the SDK:
 
@@ -60,8 +59,9 @@ Sent by the GoWise **server** (event-service), not the SDK:
 
 ## Account
 
-Signup, sign-in and sign-out are **not** tracked by the app (same as ShopEase / MedGo): GoWise records
-`$user_registered`, `$user_logged_in` and `$logout` itself (see above).
+Signup, sign-in and sign-out are **not** tracked by the app (same as ShopEase / MedGo / GoMove): GoWise
+records `$user_registered` and `$user_logged_in` itself (see above). Sign-out calls the SDK's `logout()`,
+which gives the browser a new guest id but records **no** event — there is no `$logout`.
 
 | Event | Trigger | Properties |
 |---|---|---|
