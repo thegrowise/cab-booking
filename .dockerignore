@@ -1,3 +1,4 @@
+# nginx.conf must stay in context (Dockerfile COPY)
 node_modules
 .nuxt
 .output
@@ -6,6 +7,7 @@ dist
 .gitignore
 Dockerfile
 .dockerignore
+.github
 *.md
 docs
 .env
