@@ -96,9 +96,6 @@ export function useGrowise() {
         const growise = await loadGrowiseCdn()
         const options = growiseInitOptions(String(config.public.growiseEnv || '') || undefined, {
           appVersion: String(config.public.appVersion),
-          growiseEventsBase: String(config.public.growiseEventsBase || ''),
-          growiseEndpoint: String(config.public.growiseEndpoint || ''),
-          growiseGateway: String(config.public.growiseGateway || '')
         })
         await growise.init(key, options)
 
