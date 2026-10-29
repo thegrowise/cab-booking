@@ -1,32 +1,29 @@
-# Nuxt SPA (ssr:false) → static generate → nginx
+# Nuxt SPA → Node (Nitro). NUXT_PUBLIC_* from docker compose env at runtime.
 FROM node:20-alpine AS builder
 WORKDIR /app
 
 ENV NUXT_TELEMETRY_DISABLED=1
-# Build needs full install (devDependencies); final image is nginx-only
 ENV NODE_ENV=development
 
 COPY package.json package-lock.json ./
 RUN npm ci
 
 COPY . .
+RUN npm run build
 
-ARG NUXT_PUBLIC_GROWISE_ENV=qc
-ARG NUXT_PUBLIC_GROWISE_API_KEY=
-ARG NUXT_PUBLIC_DEV_PANEL=false
+FROM node:20-alpine AS production
+WORKDIR /app
 
-ENV NUXT_PUBLIC_GROWISE_ENV=$NUXT_PUBLIC_GROWISE_ENV
-ENV NUXT_PUBLIC_GROWISE_API_KEY=$NUXT_PUBLIC_GROWISE_API_KEY
-ENV NUXT_PUBLIC_DEV_PANEL=$NUXT_PUBLIC_DEV_PANEL
+ENV NODE_ENV=production
+ENV HOST=0.0.0.0
+ENV PORT=80
+ENV NUXT_TELEMETRY_DISABLED=1
 
-RUN npm run generate
-
-FROM nginx:1.27-alpine
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-COPY --from=builder /app/.output/public /usr/share/nginx/html
+COPY --from=builder /app/.output ./.output
 
 EXPOSE 80
-HEALTHCHECK --interval=30s --timeout=5s --retries=3 --start-period=5s \
-  CMD wget -qO- http://127.0.0.1/ >/dev/null || exit 1
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 --start-period=20s \
+  CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||80)).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
-CMD ["nginx", "-g", "daemon off;"]
+USER node
+CMD ["node", ".output/server/index.mjs"]
