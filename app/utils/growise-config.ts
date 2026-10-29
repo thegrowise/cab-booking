@@ -1,13 +1,6 @@
 /** Official Growise Web SDK (CDN) — same SDK and loader as ShopEase / MedGo. */
 export const GROWISE_CDN = 'https://cdn.thegrowise.com/web-v2/dist/growise.umd.js'
 
-export const GROWISE_QC = {
-  env: 'qc',
-  eventsBase: 'https://events.qc.thegrowise.com',
-  endpoint: 'https://events.qc.thegrowise.com/track',
-  gateway: 'https://api.qc.thegrowise.com',
-} as const
-
 export type GrowiseClient = {
   init: (apiKey: string, options?: Record<string, unknown>) => Promise<void> | void
   track: (eventName: string, properties?: Record<string, unknown>) => void
@@ -65,35 +58,14 @@ export function loadGrowiseCdn(): Promise<GrowiseClient> {
   })
 }
 
-/**
- * Init options for the CDN SDK. `qc` uses the QC endpoints (like ShopEase);
- * otherwise the configured URLs (and the SDK's own local/prod defaults when unset). eventsBase (for /identify, /logout,
- * /device/register) falls back to the track endpoint without its /track suffix.
- */
+/** Init options: only `env` + `appVersion`. Endpoints come from the SDK env tables. */
 export function growiseInitOptions(env: string | undefined, config: {
   appVersion?: string
-  growiseEventsBase?: string
-  growiseGateway?: string
-  growiseEndpoint?: string
 }) {
   const options: Record<string, string> = {
     appVersion: config.appVersion || '1.0.0',
   }
-  // No env -> the SDK picks local (localhost) or prod itself, like the old SDK did
   if (env) options.env = env
-
-  if (env === 'qc') {
-    options.eventsBase = GROWISE_QC.eventsBase
-    options.endpoint = GROWISE_QC.endpoint
-    options.gateway = GROWISE_QC.gateway
-    return options
-  }
-
-  const eventsBase = config.growiseEventsBase || config.growiseEndpoint?.replace(/\/track\/?$/, '')
-  if (eventsBase) options.eventsBase = eventsBase
-  if (config.growiseEndpoint) options.endpoint = config.growiseEndpoint
-  else if (eventsBase) options.endpoint = `${eventsBase}/track`
-  if (config.growiseGateway) options.gateway = config.growiseGateway
   return options
 }
 
