@@ -3,7 +3,8 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 
 ENV NUXT_TELEMETRY_DISABLED=1
-ENV NODE_ENV=production
+# Build needs full install (devDependencies); final image is nginx-only
+ENV NODE_ENV=development
 
 COPY package.json package-lock.json ./
 RUN npm ci
