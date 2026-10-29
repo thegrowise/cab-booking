@@ -1,0 +1,128 @@
+name: Docker Deploy
+
+on:
+  push:
+    branches: [qc, uat]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-demo-${{ github.repository }}-${{ github.ref_name }}
+  cancel-in-progress: true
+
+env:
+  IMAGE_NAME: growise-demo-cab
+  COMPOSE_SERVICE: demo-cab
+  TAG_ENV_VAR: DEMO_CAB_TAG
+  REGISTRY: ${{ secrets.DOCKER_REGISTRY }}
+  IMAGE_TAG: ${{ github.ref_name }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ github.ref_name }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Log in to container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.DOCKER_REGISTRY }}
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+          build-args: |
+            NUXT_PUBLIC_GROWISE_ENV=${{ github.ref_name }}
+            NUXT_PUBLIC_GROWISE_API_KEY=${{ secrets.NUXT_PUBLIC_GROWISE_API_KEY }}
+            NUXT_PUBLIC_DEV_PANEL=false
+
+
+      - name: Resolve SSH target
+        id: ssh
+        env:
+          SSH_HOST: ${{ secrets.QC_CLOUD_HOST }}
+          SSH_USER: ${{ secrets.QC_CLOUD_USERNAME }}
+          SSH_KEY: ${{ secrets.QC_CLOUD_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${SSH_HOST}" || -z "${SSH_USER}" || -z "${SSH_KEY}" ]]; then
+            echo "Missing QC_CLOUD_* secrets"
+            exit 1
+          fi
+          echo "host=${SSH_HOST}" >> "$GITHUB_OUTPUT"
+          echo "user=${SSH_USER}" >> "$GITHUB_OUTPUT"
+          {
+            echo "key<<EOF"
+            echo "${SSH_KEY}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Deploy demos stack on server
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ steps.ssh.outputs.host }}
+          username: ${{ steps.ssh.outputs.user }}
+          key: ${{ steps.ssh.outputs.key }}
+          port: 22
+          script: |
+            set -euo pipefail
+            DEPLOY_ENV="${{ github.ref_name }}"
+            IMAGE_TAG="${{ env.IMAGE_TAG }}"
+            TAG_VAR="${{ env.TAG_ENV_VAR }}"
+            SERVICE="${{ env.COMPOSE_SERVICE }}"
+            DEMOS="/opt/myapp/demos/${DEPLOY_ENV}"
+            ENV_FILE="${DEMOS}/.env"
+            cd "${DEMOS}"
+            if [[ ! -f docker-compose.yml ]]; then
+              echo "Missing ${DEMOS}/docker-compose.yml"
+              exit 1
+            fi
+            if [[ ! -f "${ENV_FILE}" ]]; then
+              if [[ -f "${DEMOS}/.env.example" ]]; then
+                cp "${DEMOS}/.env.example" "${ENV_FILE}"
+              else
+                touch "${ENV_FILE}"
+              fi
+            fi
+            if grep -q "^${TAG_VAR}=" "${ENV_FILE}"; then
+              sed -i.bak "s/^${TAG_VAR}=.*/${TAG_VAR}=${IMAGE_TAG}/" "${ENV_FILE}"
+            else
+              echo "${TAG_VAR}=${IMAGE_TAG}" >> "${ENV_FILE}"
+            fi
+            if docker compose version >/dev/null 2>&1; then
+              docker compose pull "${SERVICE}"
+              docker compose up -d --no-deps "${SERVICE}"
+            else
+              docker-compose pull "${SERVICE}"
+              docker-compose up -d --no-deps "${SERVICE}"
+            fi
+            SHORT="${SERVICE#demo-}"
+            CONTAINER="${DEPLOY_ENV}-demo-${SHORT}"
+            for i in $(seq 1 24); do
+              status="$(docker inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "${CONTAINER}" 2>/dev/null || echo missing)"
+              if [[ "${status}" == "healthy" || "${status}" == "running" ]]; then
+                echo "OK ${CONTAINER} -> ${status}"
+                exit 0
+              fi
+              if [[ "${status}" == "unhealthy" ]]; then
+                docker logs --tail 80 "${CONTAINER}" || true
+                exit 1
+              fi
+              sleep 5
+            done
+            docker logs --tail 80 "${CONTAINER}" || true
+            exit 1
