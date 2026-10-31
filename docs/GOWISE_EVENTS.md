@@ -6,8 +6,11 @@ Every event the Ride Go web app sends through the GoWise Web SDK v2, loaded from
 All custom events go through `app/composables/useTracking.ts` → `useGrowise().track()`; nothing calls
 `window.growise` directly. The SDK is initialised once, in `app/plugins/growise.client.ts`.
 
-**Delivery:** the SDK queues events locally (IndexedDB) and sends them in batches to the configured
-endpoint (`NUXT_PUBLIC_GROWISE_ENDPOINT`, or the SDK's local/prod default) — when 5 are queued, for a few
+**Environment:** the SDK picks its endpoints from `NUXT_PUBLIC_GROWISE_ENV` (`local`, `dev`, `qc`, `stag`,
+`uat`, `prod`). Unset, it uses `local` (`http://localhost:8083`) on localhost and `prod` everywhere else, so
+set it (see `.env.example`). There is no endpoint override in this app.
+
+**Delivery:** the SDK queues events locally (IndexedDB) and sends them in batches — when 5 are queued, for a few
 key events immediately, and on page hide. Each event has a unique `event_id` and leaves the queue only
 after the server acknowledges it. Whether the GoWise backend accepts, stores or displays an event has
 **not** been verified for this app. See "Verification status" at the end.
@@ -46,7 +49,9 @@ Sent by the GoWise **server** (event-service), not the SDK:
 - **Grow ID:** on first load the SDK calls `/device/register` and gets a server-assigned guest id (`gw_guest_…`).
 - **Sign-in / signup:** `userStore.identifyCurrent()` → `onUserLogin({ Site, Custom })` → server `/identify`.
   `Site` = `Identity` (the rider's **email**), `Name`, `Email`, `Phone`; the profile traits (`city`,
-  `customer_type`, `total_rides`, …) go in `Custom`, the same shape ShopEase sends.
+  `gender`, `customer_type`, `total_rides`, …) go in `Custom`, the same shape ShopEase sends. `gender` is
+  sent only in `Custom`, as the lowercase key the seeded `gender` user property and its filters match.
+- **Accounts:** only riders who signed up in this browser. There are no built-in demo riders.
 - **Reloads:** identify again only when the SDK's user id differs from the signed-in rider's email.
 - **Profile edits:** `profilePush` only — never identify (that would log a new login and session).
 - **Sign out:** `/logout` gives the browser a **new** guest id, so the next rider is not merged with this one.
