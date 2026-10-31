@@ -200,24 +200,6 @@ const scenarios = [
     }
   },
   {
-    label: '👤 Switch to Priya Singh',
-    color: 'bg-purple-900 hover:bg-purple-800 text-purple-100',
-    action: async () => {
-      await userStore.login('usr_priya_002')
-      bookingStore.reset()
-      router.push('/')
-    }
-  },
-  {
-    label: '👤 Switch to Rahul Sharma',
-    color: 'bg-blue-900 hover:bg-blue-800 text-blue-100',
-    action: async () => {
-      await userStore.login('usr_rahul_001')
-      bookingStore.reset()
-      router.push('/')
-    }
-  },
-  {
     label: '🆕 New Anonymous User',
     color: 'bg-gray-700 hover:bg-gray-600 text-gray-100',
     action: () => {
