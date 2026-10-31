@@ -11,55 +11,6 @@ const credentials = createCredentialStore('ridego_credentials')
 
 export type LoginResult = 'ok' | 'not_found' | 'wrong_password'
 
-const DEMO_USERS: RideGoUser[] = [
-  {
-    id: 'usr_rahul_001',
-    name: 'Rahul Sharma',
-    email: 'rahul@example.com',
-    phone: '+919876543210',
-    city: 'Kanpur',
-    avatar: 'RS',
-    customerType: 'active_user',
-    totalRides: 23,
-    completedRides: 21,
-    cancelledRides: 2,
-    totalSpend: 4500,
-    walletBalance: 250,
-    rating: 4.7,
-    joinedAt: '2024-03-15',
-    lastRideDate: '2026-09-28',
-    favoriteRideType: 'auto',
-    savedPlaces: [
-      { id: 'sp_home', label: 'Home', address: 'Swaroop Nagar, Kanpur', type: 'home' },
-      { id: 'sp_work', label: 'Work', address: 'Civil Lines, Kanpur', type: 'work' }
-    ],
-    preferences: { notifications: true, emailUpdates: true, smsUpdates: true }
-  },
-  {
-    id: 'usr_priya_002',
-    name: 'Priya Singh',
-    email: 'priya@example.com',
-    phone: '+918765432109',
-    city: 'Kanpur',
-    avatar: 'PS',
-    customerType: 'frequent_rider',
-    totalRides: 67,
-    completedRides: 63,
-    cancelledRides: 4,
-    totalSpend: 18200,
-    walletBalance: 1500,
-    rating: 4.9,
-    joinedAt: '2023-08-10',
-    lastRideDate: '2026-10-05',
-    favoriteRideType: 'sedan',
-    savedPlaces: [
-      { id: 'sp_home2', label: 'Home', address: 'Kidwai Nagar, Kanpur', type: 'home' },
-      { id: 'sp_work2', label: 'Work', address: 'Govind Nagar, Kanpur', type: 'work' }
-    ],
-    preferences: { notifications: true, emailUpdates: false, smsUpdates: true }
-  }
-]
-
 export const useUserStore = defineStore('user', () => {
   const currentUser = ref<RideGoUser | null>(null)
   const isLoggedIn = computed(() => currentUser.value !== null)
@@ -98,11 +49,10 @@ export const useUserStore = defineStore('user', () => {
     } catch {}
   }
 
+  // Only riders who signed up in this browser — there are no built-in demo accounts,
+  // so only real sign-ups reach GoWise
   function allAccounts(): RideGoUser[] {
-    const reg = readRegistry()
-    const demo = DEMO_USERS.map(u => reg[u.id] ?? u)
-    const others = Object.values(reg).filter(u => !DEMO_USERS.some(d => d.id === u.id))
-    return [...demo, ...others]
+    return Object.values(readRegistry())
   }
 
   /** Points the wallet and ride history at the current rider (or the guest). */
@@ -115,7 +65,8 @@ export const useUserStore = defineStore('user', () => {
   function siteTraits(): GrowiseSiteTraits | null {
     const u = currentUser.value
     if (!u) return null
-    return { Identity: u.email, Name: u.name, Email: u.email, Phone: sitePhone(u.phone), ...(u.gender ? { Gender: u.gender } : {}) }
+    // gender goes only in the custom traits (lowercase key the seeded "gender" property matches)
+    return { Identity: u.email, Name: u.name, Email: u.email, Phone: sitePhone(u.phone) }
   }
 
   /** Identify the signed-in rider with GoWise (login / signup only — never on profile edits). */
@@ -132,19 +83,11 @@ export const useUserStore = defineStore('user', () => {
     identifyCurrent()
   }
 
-  async function login(userId: string) {
-    const found = allAccounts().find(u => u.id === userId)
-    if (!found) return false
-    signIn(found)
-    return true
-  }
-
   async function loginByEmail(email: string, password: string): Promise<LoginResult> {
     const q = email.trim().toLowerCase()
     const found = allAccounts().find(u => u.email.toLowerCase() === q)
     if (!found) return 'not_found'
-    // Accounts created before passwords existed (and the demo riders) adopt the
-    // password used on their first sign-in
+    // Accounts created before passwords existed adopt the password used on their first sign-in
     if (!credentials.has(q)) await credentials.set(q, password)
     else if (!await credentials.verify(q, password)) return 'wrong_password'
     signIn(found)
@@ -281,18 +224,11 @@ export const useUserStore = defineStore('user', () => {
     }
   }
 
-  /** Demo accounts, with any profile changes saved in this browser */
-  function getDemoUsers() {
-    const reg = readRegistry()
-    return DEMO_USERS.map(u => reg[u.id] ?? u)
-  }
-
   return {
     currentUser: readonly(currentUser),
     isLoggedIn,
     user,
     hydrate,
-    login,
     loginByEmail,
     emailTaken,
     signup,
@@ -304,7 +240,6 @@ export const useUserStore = defineStore('user', () => {
     recordRideSpend,
     recordRideCancelled,
     growiseTraits,
-    identifyCurrent,
-    getDemoUsers
+    identifyCurrent
   }
 })

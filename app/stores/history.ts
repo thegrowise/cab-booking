@@ -1,10 +1,8 @@
 import { defineStore } from 'pinia'
 import type { HistoryRide, BookingState } from '~/types/ride'
-import { RIDE_HISTORY } from '~/data/ride-history'
 
+// Every rider starts with an empty history (the demo accounts and their sample trips are gone)
 const KEY_PREFIX = 'ridego_history_'
-// Demo accounts come with sample trips; everyone else starts with an empty history
-const SAMPLE_OWNERS = ['usr_rahul_001', 'usr_priya_002']
 
 /** Ride history for the signed-in rider (or this browser's guest), kept in localStorage. */
 export const useHistoryStore = defineStore('history', () => {
@@ -27,10 +25,6 @@ export const useHistoryStore = defineStore('history', () => {
         if (Array.isArray(parsed)) { rides.value = parsed; return }
       }
     } catch {}
-    if (SAMPLE_OWNERS.includes(owner.value)) {
-      rides.value = RIDE_HISTORY.map(r => ({ ...r, sample: true }))
-      persist()
-    }
   }
 
   const sorted = computed(() => [...rides.value].sort((a, b) => b.date.localeCompare(a.date)))
